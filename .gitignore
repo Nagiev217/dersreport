@@ -1,0 +1,19 @@
+# Environment / secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Local Claude Code settings (machine-specific permissions, not shared config)
+.claude/settings.local.json
+
+# Locally-installed skills (reproducible from skills-lock.json)
+.agents/
+.claude/skills/
+apps/mobile/.claude/skills/

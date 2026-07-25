@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ── Account/profile docs — always self-only ──────────────────────────
+    // Boss/Admin cross-teacher access never goes through these client rules —
+    // it goes through Cloud Functions (Admin SDK, bypasses rules entirely).
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /parents/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /parentProfiles/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /students/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── Teacher profile + data stores ─────────────────────────────────────
+    match /teachers/{teacherUid} {
+      allow read, write: if isOwner(teacherUid);
+
+      // A teacher's data (students/lessons/payments/schedules/progress/
+      // reports/groups). Owner has full access; a parent linked to this
+      // teacher (see parentAccess below) can read only. A linked student
+      // (studentAccess below) can read everything except payments.
+      match /stores/{storeName} {
+        allow read: if isOwner(teacherUid)
+          || (isSignedIn() && exists(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid)))
+          || (isSignedIn() && storeName != 'payments'
+              && exists(/databases/$(database)/documents/studentAccess/$(request.auth.uid)/teachers/$(teacherUid)));
+        allow write: if isOwner(teacherUid);
+      }
+    }
+
+    // ── Parent code lookup (teacher enters a parent's code to link them) ──
+    match /parentCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ── Student code lookup (teacher enters a student's code to link them) ──
+    match /studentCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ── Parent <-> teacher linkage ──────────────────────────────────────────
+    // parentAccess/{parentUid}/teachers/{teacherUid} — written by the teacher
+    // when linking/unlinking a parent to a student, read by the parent to
+    // know which teachers' data they're allowed to see.
+    match /parentAccess/{parentUid}/teachers/{teacherUid} {
+      allow read: if isOwner(parentUid);
+      allow write: if isOwner(teacherUid);
+    }
+
+    // ── Student <-> teacher linkage ──────────────────────────────────────────
+    match /studentAccess/{studentUid}/teachers/{teacherUid} {
+      allow read: if isOwner(studentUid);
+      allow write: if isOwner(teacherUid);
+    }
+  }
+}
