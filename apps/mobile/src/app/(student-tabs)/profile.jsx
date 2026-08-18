@@ -26,6 +26,7 @@ import { auth } from "@/utils/firebase/config";
 import { getStudentProfile, getStudentAccess } from "@/utils/firebase/roles";
 import { clearCachedRole } from "@/utils/auth/roleCache";
 import { useT } from "@/utils/i18n";
+import DevAccountSwitcher from "@/components/DevAccountSwitcher";
 
 // Minimal QR display using a styled code block (no external package)
 function QRDisplay({ value }) {
@@ -219,6 +220,8 @@ export default function StudentProfile() {
         <LogOut size={16} color="#EF4444" />
         <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#EF4444" }}>{t("profileSignOut")}</Text>
       </TouchableOpacity>
+
+      <DevAccountSwitcher currentRole="student" />
     </ScrollView>
   );
 }

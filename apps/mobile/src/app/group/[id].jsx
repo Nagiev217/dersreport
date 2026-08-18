@@ -14,14 +14,19 @@ import { useGroupsStore } from "@/utils/groups/store";
 import { useStudentsStore } from "@/utils/students/store";
 import { useProgressStore } from "@/utils/progress/store";
 import { useT } from "@/utils/i18n";
+import PressableScale from "@/components/PressableScale";
 
-// ─── tokens ──────────────────────────────────────────────────────────────────
-const P      = "#5B4FE9";
-const CARD   = "#FFFFFF";
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
 const TEXT   = "#111827";
-const SUB    = "#9CA3AF";
-const BG     = "#FAFAFA";
-const BORDER = "#F3F4F6";
+const SUB    = "#8E93A1";
+const CARD   = "#FFFFFF";
+const BORDER = "#E5E9F2";
+const GREEN  = "#22C55E";
+const AMBER  = "#D97706";
 
 const EMOJI_OPTS = [
   { emoji: "📚", color: "#EDEDF9" },
@@ -38,13 +43,13 @@ const EMOJI_OPTS = [
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 function scoreColor(s) {
-  if (s >= 9) return "#10B981";
-  if (s >= 8) return "#3B82F6";
-  if (s >= 7) return "#F59E0B";
+  if (s >= 9) return GREEN;
+  if (s >= 8) return BLUE;
+  if (s >= 7) return AMBER;
   return "#EF4444";
 }
 
-const PALETTE = [P,"#10B981","#F59E0B","#EF4444","#06B6D4","#8B5CF6","#EC4899","#0EA5E9"];
+const PALETTE = [BLUE, INDIGO, GREEN, AMBER, "#EF4444", "#06B6D4", "#EC4899", "#0EA5E9"];
 function avatarBg(name = "", override) {
   if (override) return override;
   let h = 0;
@@ -140,7 +145,7 @@ function EditGroupModal({ visible, group, onSave, onClose }) {
                   key={opt.emoji}
                   onPress={() => setEmoji(opt)}
                   activeOpacity={0.75}
-                  style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: opt.color, alignItems: "center", justifyContent: "center", borderWidth: sel ? 2.5 : 0, borderColor: sel ? P : "transparent" }}
+                  style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: opt.color, alignItems: "center", justifyContent: "center", borderWidth: sel ? 2.5 : 0, borderColor: sel ? INDIGO : "transparent" }}
                 >
                   <Text style={{ fontSize: 24 }}>{opt.emoji}</Text>
                 </TouchableOpacity>
@@ -148,13 +153,21 @@ function EditGroupModal({ visible, group, onSave, onClose }) {
             })}
           </View>
 
-          <TouchableOpacity
+          <PressableScale
             onPress={() => name.trim() && onSave({ name: name.trim(), emoji: emoji.emoji, emojiColor: emoji.color })}
-            activeOpacity={0.85}
-            style={{ backgroundColor: name.trim() ? P : `${P}50`, borderRadius: 16, paddingVertical: 15, alignItems: "center" }}
+            scaleTo={0.98}
+            style={{ borderRadius: 16, overflow: "hidden" }}
           >
-            <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" }}>{t("save")}</Text>
-          </TouchableOpacity>
+            {name.trim() ? (
+              <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" }}>{t("save")}</Text>
+              </LinearGradient>
+            ) : (
+              <View style={{ backgroundColor: INDIGO_50, paddingVertical: 15, alignItems: "center" }}>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#B4B9D9" }}>{t("save")}</Text>
+              </View>
+            )}
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -179,7 +192,7 @@ function AddStudentsModal({ visible, students, onAdd, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.35)" }}>
+      <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(17,24,39,0.4)" }}>
         <View style={{ backgroundColor: CARD, borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "75%", paddingBottom: 34 }}>
           {/* Handle */}
           <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: BORDER, alignSelf: "center", marginTop: 12, marginBottom: 4 }} />
@@ -201,7 +214,7 @@ function AddStudentsModal({ visible, students, onAdd, onClose }) {
           ) : (
             <>
               <ScrollView style={{ paddingHorizontal: 20 }}>
-                <View style={{ backgroundColor: BG, borderRadius: 18, overflow: "hidden" }}>
+                <View style={{ borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
                   {students.map((s, i) => {
                     const bg   = avatarBg(s.name, s.avatarColor);
                     const sDisplayName = tName(s.name);
@@ -216,7 +229,7 @@ function AddStudentsModal({ visible, students, onAdd, onClose }) {
                           paddingHorizontal: 14, paddingVertical: 13,
                           borderBottomWidth: i < students.length - 1 ? 1 : 0,
                           borderBottomColor: BORDER,
-                          backgroundColor: isSel ? `${P}08` : CARD,
+                          backgroundColor: isSel ? INDIGO_50 : CARD,
                         }}
                       >
                         <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
@@ -230,8 +243,8 @@ function AddStudentsModal({ visible, students, onAdd, onClose }) {
                         </View>
                         <View style={{
                           width: 24, height: 24, borderRadius: 12,
-                          backgroundColor: isSel ? P : "transparent",
-                          borderWidth: 2, borderColor: isSel ? P : BORDER,
+                          backgroundColor: isSel ? INDIGO : "transparent",
+                          borderWidth: 2, borderColor: isSel ? INDIGO : BORDER,
                           alignItems: "center", justifyContent: "center",
                         }}>
                           {isSel && <Check size={13} color="#FFF" strokeWidth={3} />}
@@ -243,15 +256,17 @@ function AddStudentsModal({ visible, students, onAdd, onClose }) {
               </ScrollView>
 
               <View style={{ paddingHorizontal: 20, paddingTop: 16 }}>
-                <TouchableOpacity
-                  onPress={handleAdd}
-                  activeOpacity={0.85}
-                  style={{ backgroundColor: selected.length ? P : `${P}50`, borderRadius: 16, paddingVertical: 15, alignItems: "center" }}
-                >
-                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" }}>
-                    {selected.length > 0 ? t("groupsAddBtn", { n: selected.length }) : t("groupsSelectStudents")}
-                  </Text>
-                </TouchableOpacity>
+                <PressableScale onPress={handleAdd} scaleTo={0.98} style={{ borderRadius: 16, overflow: "hidden" }}>
+                  {selected.length ? (
+                    <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingVertical: 15, alignItems: "center" }}>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFF" }}>{t("groupsAddBtn", { n: selected.length })}</Text>
+                    </LinearGradient>
+                  ) : (
+                    <View style={{ backgroundColor: INDIGO_50, paddingVertical: 15, alignItems: "center" }}>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#B4B9D9" }}>{t("groupsSelectStudents")}</Text>
+                    </View>
+                  )}
+                </PressableScale>
               </View>
             </>
           )}
@@ -280,9 +295,9 @@ export default function GroupDetailScreen() {
   // Redirect back if group was deleted
   if (!group) {
     return (
-      <View style={{ flex: 1, backgroundColor: BG, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
         <TouchableOpacity onPress={() => router.back()} style={{ padding: 20 }}>
-          <Text style={{ color: P, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>← {t("back")}</Text>
+          <Text style={{ color: INDIGO, fontFamily: "Inter_600SemiBold", fontSize: 16 }}>← {t("back")}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -360,30 +375,34 @@ export default function GroupDetailScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       {/* ── Gradient header ─────────────────────────────────────────── */}
       <LinearGradient
-        colors={["#5B4FE9", "#8B7FF7"]}
+        colors={[BLUE, INDIGO]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ paddingTop: insets.top + 12, paddingBottom: 32, paddingHorizontal: 20 }}
       >
         {/* Back + edit row */}
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
-          <TouchableOpacity
+          <PressableScale
             onPress={() => router.back()}
-            activeOpacity={0.7}
-            style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center", marginRight: "auto" }}
+            scaleTo={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={t("back")}
+            style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center", marginRight: "auto" }}
           >
             <ArrowLeft size={20} color="#FFF" strokeWidth={2} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </PressableScale>
+          <PressableScale
             onPress={() => setShowEdit(true)}
-            activeOpacity={0.7}
-            style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}
+            scaleTo={0.9}
+            accessibilityRole="button"
+            accessibilityLabel={t("groupsEditTitle")}
+            style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}
           >
             <Pencil size={18} color="#FFF" strokeWidth={2} />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         {/* Emoji + name + stats */}
@@ -393,8 +412,8 @@ export default function GroupDetailScreen() {
           </View>
 
           {isArchived && (
-            <View style={{ backgroundColor: "rgba(245,158,11,0.25)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 }}>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FDE68A" }}>{t("groupsInArchive")}</Text>
+            <View style={{ backgroundColor: "rgba(245,158,11,0.28)", paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#FEF3C7" }}>{t("groupsInArchive")}</Text>
             </View>
           )}
 
@@ -408,16 +427,16 @@ export default function GroupDetailScreen() {
               <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF" }}>
                 {groupStudents.length}
               </Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" }}>
                 {tp(groupStudents.length, "student")}
               </Text>
             </View>
-            <View style={{ width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.2)" }} />
+            <View style={{ width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.25)" }} />
             <View style={{ alignItems: "center" }}>
               <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFF" }}>
                 {avgScore > 0 ? avgScore.toFixed(1) : "—"}
               </Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" }}>
                 {t("groupsAvgScore")}
               </Text>
             </View>
@@ -442,22 +461,22 @@ export default function GroupDetailScreen() {
             <TouchableOpacity
               onPress={() => setShowAddStudents(true)}
               activeOpacity={0.75}
-              style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: `${P}14` }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: INDIGO_50 }}
             >
-              <UserPlus size={14} color={P} strokeWidth={2} />
-              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: P }}>{t("add")}</Text>
+              <UserPlus size={14} color={INDIGO} strokeWidth={2} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: INDIGO }}>{t("add")}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {groupStudents.length === 0 ? (
-          <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 32, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+          <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 32, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
             <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 22 }}>
               {t("groupsNoStudents")}
             </Text>
           </View>
         ) : (
-          <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
+          <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
             {groupStudents.map((s, i) => (
               <StudentRow
                 key={s.id}
@@ -490,10 +509,10 @@ export default function GroupDetailScreen() {
             }}
           >
             {isArchived
-              ? <RotateCcw size={18} color="#10B981" strokeWidth={2} />
-              : <Archive size={18} color="#F59E0B" strokeWidth={2} />
+              ? <RotateCcw size={18} color={GREEN} strokeWidth={2} />
+              : <Archive size={18} color={AMBER} strokeWidth={2} />
             }
-            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: isArchived ? "#10B981" : "#F59E0B" }}>
+            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: isArchived ? GREEN : AMBER }}>
               {isArchived ? t("groupsRestoreBtn") : t("groupsArchiveBtn")}
             </Text>
           </TouchableOpacity>
@@ -504,7 +523,7 @@ export default function GroupDetailScreen() {
             activeOpacity={0.75}
             style={{
               flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-              backgroundColor: "#FFF5F5", borderRadius: 16, paddingVertical: 15,
+              backgroundColor: "#FEF2F2", borderRadius: 16, paddingVertical: 15,
               borderWidth: 1, borderColor: "#FECACA",
             }}
           >

@@ -142,7 +142,7 @@ function AddGroupModal({ visible, onClose }) {
   function handleSave() {
     if (!name.trim()) return;
     addGroup({
-      id:         `gr-${Date.now()}`,
+      id:         `gr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       name:       name.trim(),
       emoji:      emoji.emoji,
       emojiColor: emoji.color,

@@ -73,7 +73,7 @@ export default function AddGoalModal({ visible, onClose, studentId, editGoal }) 
       });
     } else {
       addGoal({
-        id: `goal-${studentId}-${Date.now()}`,
+        id: `goal-${studentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         studentId,
         title: title.trim(),
         description: description.trim(),

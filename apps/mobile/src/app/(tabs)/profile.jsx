@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   LogOut,
   GraduationCap,
@@ -31,7 +32,6 @@ import {
   Star,
   CalendarDays,
   UserCircle,
-  CheckCircle2,
   X,
   Globe,
   Check,
@@ -46,11 +46,21 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { clearCachedRole } from "@/utils/auth/roleCache";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
+import PressableScale from "@/components/PressableScale";
+import DevAccountSwitcher from "@/components/DevAccountSwitcher";
 import { useT, useLangStore } from "@/utils/i18n";
 
 const PHOTO_KEY = "teacherProfilePhoto";
 const NOTIF_KEY = "teacherNotifications";
-const NAVY_GRAD = ["#22447A", "#152C51"];
+
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT  = "#111827";
+const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
 
 const LANG_OPTIONS = [
   { id: "ru", flag: "🇷🇺", native: "Русский" },
@@ -62,19 +72,19 @@ const LANG_OPTIONS = [
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, alignItems: "center", gap: 6, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, alignItems: "center", gap: 6, borderWidth: 1, borderColor: BORDER }}>
       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
         <Icon size={18} color={color} />
       </View>
-      <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{value}</Text>
-      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center" }}>{label}</Text>
+      <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT }}>{value}</Text>
+      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center" }}>{label}</Text>
     </View>
   );
 }
 
 function SectionHeader({ title }) {
   return (
-    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#8E8E93", textTransform: "uppercase", letterSpacing: 0.6, marginHorizontal: 20, marginBottom: 8, marginTop: 20 }}>
+    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: SUB, textTransform: "uppercase", letterSpacing: 0.6, marginHorizontal: 20, marginBottom: 8, marginTop: 20 }}>
       {title}
     </Text>
   );
@@ -83,15 +93,15 @@ function SectionHeader({ title }) {
 function MenuRow({ icon: Icon, iconColor, iconBg, label, value, onPress, right }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7} style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12 }}>
-      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: iconBg ?? "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
-        <Icon size={17} color={iconColor ?? "#8E8E93"} />
+      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: iconBg ?? "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+        <Icon size={17} color={iconColor ?? SUB} />
       </View>
-      <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#1C1C1E" }} numberOfLines={1}>
+      <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT }} numberOfLines={1}>
         {label}
       </Text>
       {right ?? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          {value ? <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{value}</Text> : null}
+          {value ? <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB }}>{value}</Text> : null}
           <ChevronRight size={16} color="#C7C7CC" />
         </View>
       )}
@@ -100,12 +110,12 @@ function MenuRow({ icon: Icon, iconColor, iconBg, label, value, onPress, right }
 }
 
 function Divider() {
-  return <View style={{ height: 0.5, backgroundColor: "#F2F2F7", marginLeft: 64 }} />;
+  return <View style={{ height: 1, backgroundColor: "#F1F5F9", marginLeft: 64 }} />;
 }
 
 function Card({ children, style }) {
   return (
-    <View style={[{ marginHorizontal: 20, backgroundColor: "#FFFFFF", borderRadius: 20, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 }, style]}>
+    <View style={[{ marginHorizontal: 20, backgroundColor: "#FFFFFF", borderRadius: 20, overflow: "hidden", borderWidth: 1, borderColor: BORDER }, style]}>
       {children}
     </View>
   );
@@ -120,7 +130,7 @@ function LangModal({ visible, onClose }) {
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(15,23,42,0.45)", justifyContent: "flex-end" }} onPress={onClose}>
         <Pressable onPress={() => {}}>
           <View style={{ backgroundColor: "#FFFFFF", borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingBottom: insets.bottom + 20, paddingTop: 8 }}>
             {/* Handle */}
@@ -130,19 +140,19 @@ function LangModal({ visible, onClose }) {
 
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}>
-                  <Globe size={18} color="#6B5CF6" />
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center" }}>
+                  <Globe size={18} color={BLUE} />
                 </View>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>
+                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>
                   {t("langTitle")}
                 </Text>
               </View>
-              <TouchableOpacity onPress={onClose}>
-                <X size={22} color="#8E8E93" />
+              <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
+                <X size={16} color={SUB} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "#F2F2F7" }}>
+            <View style={{ borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
               {LANG_OPTIONS.map((opt, i) => {
                 const active = lang === opt.id;
                 return (
@@ -153,16 +163,16 @@ function LangModal({ visible, onClose }) {
                     style={{
                       flexDirection: "row", alignItems: "center", gap: 14,
                       padding: 16,
-                      backgroundColor: active ? "#F5F3FF" : "#FFFFFF",
-                      borderBottomWidth: i < LANG_OPTIONS.length - 1 ? 0.5 : 0,
-                      borderBottomColor: "#F2F2F7",
+                      backgroundColor: active ? BLUE_50 : "#FFFFFF",
+                      borderTopWidth: i > 0 ? 1 : 0,
+                      borderTopColor: "#F1F5F9",
                     }}
                   >
                     <Text style={{ fontSize: 28 }}>{opt.flag}</Text>
-                    <Text style={{ flex: 1, fontSize: 16, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular", color: active ? "#6B5CF6" : "#1C1C1E" }}>
+                    <Text style={{ flex: 1, fontSize: 16, fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular", color: active ? BLUE : TEXT }}>
                       {opt.native}
                     </Text>
-                    {active && <Check size={20} color="#6B5CF6" />}
+                    {active && <Check size={20} color={BLUE} />}
                   </TouchableOpacity>
                 );
               })}
@@ -205,13 +215,15 @@ function EditNameModal({ visible, currentName, onSave, onClose }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: "rgba(0,0,0,0.35)", position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
+        <View style={{ backgroundColor: "rgba(15,23,42,0.45)", position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
         <View style={{ backgroundColor: "#FFFFFF", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>
+            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>
               {t("profileEditName")}
             </Text>
-            <TouchableOpacity onPress={onClose}><X size={22} color="#8E8E93" /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
+              <X size={16} color={SUB} />
+            </TouchableOpacity>
           </View>
           <TextInput
             value={value}
@@ -219,17 +231,24 @@ function EditNameModal({ visible, currentName, onSave, onClose }) {
             placeholder={t("profileYourName")}
             placeholderTextColor="#C7C7CC"
             autoFocus
-            style={{ backgroundColor: "#F2F2F7", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: "Inter_400Regular", color: "#1C1C1E", marginBottom: 16 }}
+            style={{ backgroundColor: "#F2F2F7", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, fontFamily: "Inter_400Regular", color: TEXT, marginBottom: 16 }}
           />
-          <TouchableOpacity
+          <PressableScale
             onPress={handleSave}
             disabled={saving || !value.trim()}
-            style={{ height: 52, borderRadius: 16, backgroundColor: value.trim() ? "#6B5CF6" : "#E5E5EA", alignItems: "center", justifyContent: "center" }}
+            scaleTo={0.97}
+            style={{ borderRadius: 16, overflow: "hidden" }}
           >
-            <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: value.trim() ? "#FFFFFF" : "#8E8E93" }}>
-              {saving ? t("saving") : t("save")}
-            </Text>
-          </TouchableOpacity>
+            <LinearGradient
+              colors={value.trim() ? [BLUE, INDIGO] : ["#E5E5EA", "#E5E5EA"]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+              style={{ height: 52, alignItems: "center", justifyContent: "center" }}
+            >
+              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: value.trim() ? "#FFFFFF" : "#8E8E93" }}>
+                {saving ? t("saving") : t("save")}
+              </Text>
+            </LinearGradient>
+          </PressableScale>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -330,76 +349,78 @@ export default function TeacherProfile() {
 
   return (
     <>
-      <ScrollView style={{ flex: 1, backgroundColor: "#F2F2F7" }} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
-        {/* Fills the top overscroll/bounce gap with navy instead of the light background */}
-        <View style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: NAVY_GRAD[0] }} />
-
-        {/* ── Header ─────────────────────────────────────────────────────── */}
+      <ScrollView style={{ flex: 1, backgroundColor: "#FFFFFF" }} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }} showsVerticalScrollIndicator={false}>
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
         <LinearGradient
-          colors={NAVY_GRAD}
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.6, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.4, y: 1 }}
-          style={{ paddingTop: insets.top + 16, paddingHorizontal: 24, paddingBottom: 40, borderBottomLeftRadius: 32, borderBottomRightRadius: 32, alignItems: "center" }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 16, paddingHorizontal: 24, paddingBottom: 24, alignItems: "center" }}
         >
-          <TouchableOpacity onPress={pickPhoto} activeOpacity={0.85} style={{ marginBottom: 16 }}>
-            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "rgba(255,255,255,0.3)", overflow: "hidden" }}>
-              {photoUri ? (
-                <Image source={{ uri: photoUri }} style={{ width: 96, height: 96 }} />
-              ) : (
-                <Text style={{ fontSize: 36, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
-                  {displayName[0]?.toUpperCase()}
-                </Text>
-              )}
-            </View>
-            <View style={{ position: "absolute", bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 }}>
-              <Camera size={14} color={NAVY_GRAD[1]} />
-            </View>
-          </TouchableOpacity>
+          <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))} style={{ alignItems: "center" }}>
+            <PressableScale onPress={pickPhoto} scaleTo={0.95} accessibilityRole="button" accessibilityLabel={t("profileChangePhoto")} style={{ marginBottom: 16 }}>
+              <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: BLUE, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: "#FFFFFF", overflow: "hidden" }}>
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={{ width: 96, height: 96 }} />
+                ) : (
+                  <Text style={{ fontSize: 36, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
+                    {displayName[0]?.toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <View style={{ position: "absolute", bottom: 2, right: 2, width: 28, height: 28, borderRadius: 14, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: BORDER }}>
+                <Camera size={14} color={BLUE} />
+              </View>
+            </PressableScale>
 
-          <TouchableOpacity onPress={() => setShowEditName(true)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
-            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{displayName}</Text>
-            <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.16)", alignItems: "center", justifyContent: "center" }}>
-              <Pencil size={12} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowEditName(true)} activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT }}>{displayName}</Text>
+              <View style={{ width: 24, height: 24, borderRadius: 8, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center" }}>
+                <Pencil size={12} color={BLUE} />
+              </View>
+            </TouchableOpacity>
 
-          <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", marginBottom: 12 }}>
-            {email}
-          </Text>
-
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.12)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 }}>
-            <GraduationCap size={13} color="#FFFFFF" />
-            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>
-              {t("profileTeacher")}
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 12 }}>
+              {email}
             </Text>
-          </View>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(37,99,235,0.1)", paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 }}>
+              <GraduationCap size={13} color={BLUE} />
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: BLUE }}>
+                {t("profileTeacher")}
+              </Text>
+            </View>
+          </Animated.View>
         </LinearGradient>
 
         {/* ── Stats ──────────────────────────────────────────────────────── */}
         <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 20, marginTop: 20, marginBottom: 4 }}>
-          <StatCard icon={Users}    label={t("profileStudents")} value={students.length} color="#6B5CF6" bg="#EEF0FF" />
-          <StatCard icon={BookOpen} label={t("profileLessons")}  value={lessons.length}  color="#0EA5E9" bg="#E0F2FE" />
-          <StatCard icon={FileText} label={t("profileReports")}  value={reports.length}  color="#22C55E" bg="#F0FDF4" />
+          <StatCard icon={Users}    label={t("profileStudents")} value={students.length} color={BLUE}   bg={BLUE_50} />
+          <StatCard icon={BookOpen} label={t("profileLessons")}  value={lessons.length}  color={INDIGO} bg={INDIGO_50} />
+          <StatCard icon={FileText} label={t("profileReports")}  value={reports.length}  color="#22C55E" bg="#ECFDF5" />
         </View>
 
         {/* ── Аккаунт ────────────────────────────────────────────────────── */}
         <SectionHeader title={t("profileSectionAccount")} />
         <Card>
-          <MenuRow icon={Pencil}     iconColor="#6B5CF6" iconBg="#EEF0FF" label={t("profileChangeName")} value={displayName} onPress={() => setShowEditName(true)} />
+          <MenuRow icon={Pencil}     iconColor={BLUE}   iconBg={BLUE_50}   label={t("profileChangeName")} value={displayName} onPress={() => setShowEditName(true)} />
           <Divider />
-          <MenuRow icon={Camera}     iconColor="#0EA5E9" iconBg="#E0F2FE" label={t("profileChangePhoto")} onPress={pickPhoto} />
+          <MenuRow icon={Camera}     iconColor={INDIGO} iconBg={INDIGO_50} label={t("profileChangePhoto")} onPress={pickPhoto} />
           <Divider />
-          <MenuRow icon={UserCircle} iconColor="#8E8E93" iconBg="#F2F2F7" label={t("profileChangeRole")} onPress={() => router.replace("/role-select")} />
+          <MenuRow icon={UserCircle} iconColor={SUB}    iconBg="#F1F5F9"   label={t("profileChangeRole")} onPress={() => router.replace("/role-select")} />
         </Card>
 
         {/* ── Быстрый доступ ─────────────────────────────────────────────── */}
         <SectionHeader title={t("profileSectionQuick")} />
         <Card>
-          <MenuRow icon={Users}       iconColor="#6B5CF6" iconBg="#EEF0FF" label={t("profileMyStudents")} value={`${students.length}`} onPress={() => router.navigate("/(tabs)/students")} />
+          <MenuRow icon={Users}       iconColor={BLUE}   iconBg={BLUE_50}   label={t("profileMyStudents")} value={`${students.length}`} onPress={() => router.navigate("/(tabs)/students")} />
           <Divider />
-          <MenuRow icon={CalendarDays} iconColor="#F59E0B" iconBg="#FFFBEB" label={t("profileSchedule")}   onPress={() => router.navigate("/(tabs)/schedule")} />
+          <MenuRow icon={CalendarDays} iconColor="#D97706" iconBg="#FFFBEB"  label={t("profileSchedule")}   onPress={() => router.navigate("/(tabs)/schedule")} />
           <Divider />
-          <MenuRow icon={BarChart2}   iconColor="#22C55E" iconBg="#F0FDF4" label={t("profileAnalytics")}  onPress={() => router.navigate("/(tabs)/analytics")} />
+          <MenuRow icon={BarChart2}   iconColor="#22C55E" iconBg="#ECFDF5"  label={t("profileAnalytics")}  onPress={() => router.navigate("/(tabs)/analytics")} />
         </Card>
 
         {/* ── Настройки ──────────────────────────────────────────────────── */}
@@ -407,23 +428,23 @@ export default function TeacherProfile() {
         <Card>
           <MenuRow
             icon={Bell}
-            iconColor="#F59E0B"
+            iconColor="#D97706"
             iconBg="#FFFBEB"
             label={t("profileNotifications")}
             right={
               <Switch
                 value={notifications}
                 onValueChange={toggleNotifications}
-                trackColor={{ false: "#E5E5EA", true: "#DDD9FF" }}
-                thumbColor={notifications ? "#6B5CF6" : "#FFFFFF"}
+                trackColor={{ false: "#E5E5EA", true: BLUE_50 }}
+                thumbColor={notifications ? BLUE : "#FFFFFF"}
               />
             }
           />
           <Divider />
           <MenuRow
             icon={Globe}
-            iconColor="#6B5CF6"
-            iconBg="#EEF0FF"
+            iconColor={BLUE}
+            iconBg={BLUE_50}
             label={t("profileLanguage")}
             value={currentLangLabel ? `${currentLangLabel.flag} ${currentLangLabel.native}` : ""}
             onPress={() => setShowLang(true)}
@@ -433,11 +454,11 @@ export default function TeacherProfile() {
         {/* ── О приложении ───────────────────────────────────────────────── */}
         <SectionHeader title={t("profileSectionAbout")} />
         <Card style={{ marginBottom: 16 }}>
-          <MenuRow icon={Info} iconColor="#0EA5E9" iconBg="#E0F2FE" label={t("profileVersion")} value="1.0.0" onPress={() => {}} />
+          <MenuRow icon={Info} iconColor={INDIGO} iconBg={INDIGO_50} label={t("profileVersion")} value="1.0.0" onPress={() => {}} />
           <Divider />
           <MenuRow
             icon={Star}
-            iconColor="#F59E0B"
+            iconColor="#D97706"
             iconBg="#FFFBEB"
             label={t("profileRate")}
             onPress={() => Alert.alert(t("profileRateThx"), t("profileRateMsg"))}
@@ -455,6 +476,8 @@ export default function TeacherProfile() {
             {t("profileSignOut")}
           </Text>
         </TouchableOpacity>
+
+        <DevAccountSwitcher currentRole="teacher" />
       </ScrollView>
 
       <EditNameModal

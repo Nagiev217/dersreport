@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, Modal } from "react-na
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { LogOut, Globe, ChevronRight, Check, X, ShieldCheck, Crown } from "lucide-react-native";
+import { LogOut, Globe, ChevronRight, Check, X, ShieldCheck, Crown, Sparkles } from "lucide-react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase/config";
 import { clearCachedRole } from "@/utils/auth/roleCache";
@@ -11,7 +11,7 @@ import { useT, useLangStore } from "@/utils/i18n";
 import { useMyRole } from "@/utils/auth/useMyRole";
 import { ROLES } from "@/utils/auth/permissions";
 
-const NAVY_GRAD = ["#22447A", "#152C51"];
+const NAVY_GRAD = ["#2563EB", "#4F46E5"];
 
 const LANG_OPTIONS = [
   { id: "ru", flag: "🇷🇺", native: "Русский" },
@@ -107,6 +107,62 @@ export default function AdminProfile() {
           </Text>
           <ChevronRight size={16} color="#C7C7CC" />
         </TouchableOpacity>
+
+        {role === ROLES.BOSS ? (
+          <TouchableOpacity
+            onPress={() => router.push("/boss-home-test")}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: "#F1F2F5" }}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
+              <Sparkles size={18} color="#4F46E5" />
+            </View>
+            <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#1C1C1E" }}>Тестовый дизайн (превью)</Text>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+        ) : null}
+
+        {role === ROLES.BOSS ? (
+          <TouchableOpacity
+            onPress={() => router.push("/(admin-tabs)/analytics-variant-tabs")}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: "#F1F2F5" }}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
+              <Sparkles size={18} color="#4F46E5" />
+            </View>
+            <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#1C1C1E" }}>Статистика — вариант «Вкладки»</Text>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+        ) : null}
+
+        {role === ROLES.BOSS ? (
+          <TouchableOpacity
+            onPress={() => router.push("/(admin-tabs)/analytics-variant-calm")}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: "#F1F2F5" }}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
+              <Sparkles size={18} color="#4F46E5" />
+            </View>
+            <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#1C1C1E" }}>Статистика — вариант «Спокойный»</Text>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+        ) : null}
+
+        {role === ROLES.BOSS ? (
+          <TouchableOpacity
+            onPress={() => router.push("/(admin-tabs)/analytics-variant-premium")}
+            activeOpacity={0.7}
+            style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderTopWidth: 1, borderTopColor: "#F1F2F5" }}
+          >
+            <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF2FF", alignItems: "center", justifyContent: "center" }}>
+              <Sparkles size={18} color="#4F46E5" />
+            </View>
+            <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: "#1C1C1E" }}>Статистика — вариант «Premium»</Text>
+            <ChevronRight size={16} color="#C7C7CC" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <TouchableOpacity

@@ -1,6 +1,6 @@
 import {
   doc, setDoc, getDoc, getDocs,
-  deleteDoc, collection,
+  deleteDoc, collection, arrayUnion, arrayRemove,
 } from 'firebase/firestore';
 import { db, IS_FIREBASE_READY } from './config';
 
@@ -94,26 +94,28 @@ export async function lookupParentByCode(rawCode) {
 
 // ─── Linking ──────────────────────────────────────────────────────────────────
 
+// Uses arrayUnion instead of read-then-merge: the security rule only lets
+// the PARENT read this doc (parentAccess/{parentUid}/...), not the teacher
+// writing it, so a getDoc() here from the teacher's client always failed
+// with permission-denied before the write was ever attempted.
 export async function linkParentToStudent(teacherUid, teacherName, parentUid, parentCode, studentId) {
   if (!IS_FIREBASE_READY || !db) return;
   const ref = doc(db, 'parentAccess', parentUid, 'teachers', teacherUid);
-  const existing = await getDoc(ref);
-  const existingIds = existing.exists() ? (existing.data().studentIds ?? []) : [];
-  const newIds = [...new Set([...existingIds, String(studentId)])];
-  await setDoc(ref, { studentIds: newIds, teacherName: teacherName ?? '', linkedAt: Date.now() });
+  await setDoc(ref, {
+    studentIds: arrayUnion(String(studentId)),
+    teacherName: teacherName ?? '',
+    linkedAt: Date.now(),
+  }, { merge: true });
 }
 
 export async function unlinkParentFromStudent(teacherUid, parentUid, studentId) {
   if (!IS_FIREBASE_READY || !db) return;
   const ref = doc(db, 'parentAccess', parentUid, 'teachers', teacherUid);
-  const existing = await getDoc(ref);
-  if (!existing.exists()) return;
-  const newIds = (existing.data().studentIds ?? []).filter(id => id !== String(studentId));
-  if (newIds.length === 0) {
-    await deleteDoc(ref);
-  } else {
-    await setDoc(ref, { ...existing.data(), studentIds: newIds });
-  }
+  // Same reasoning as linkParentToStudent — no read-before-write, since the
+  // teacher can't read this doc. Leaves an empty studentIds: [] doc behind
+  // once the last child is unlinked rather than deleting it; harmless, and
+  // access is fully revoked either way (nothing matches "in []").
+  await setDoc(ref, { studentIds: arrayRemove(String(studentId)) }, { merge: true });
 }
 
 // ─── Parent access (list of teacher links) ───────────────────────────────────

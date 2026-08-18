@@ -26,9 +26,11 @@ export async function loadStore(uid, storeName) {
   }
 }
 
-// Load all stores in parallel
+// Load all stores in parallel.
+// `reports` is absent: it lives in a per-document subcollection with its own
+// live listener (see utils/reports/firestoreSync.js), not a whole-array doc.
 export async function loadAllStores(uid) {
-  const names = ['students', 'lessons', 'payments', 'schedules', 'progress', 'reports', 'groups', 'parents'];
+  const names = ['students', 'lessons', 'payments', 'schedules', 'progress', 'groups', 'parents', 'homework', 'writing', 'exams'];
   const results = await Promise.all(names.map((n) => loadStore(uid, n)));
   return Object.fromEntries(names.map((n, i) => [n, results[i]]));
 }

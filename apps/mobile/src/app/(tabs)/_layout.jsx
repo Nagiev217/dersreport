@@ -3,7 +3,7 @@ import { Home, Users, BookOpen, BarChart3, UserCircle } from "lucide-react-nativ
 import { View } from "react-native";
 import { useT } from "@/utils/i18n";
 
-const ACTIVE_COLOR = "#6B5CF6";
+const ACTIVE_COLOR = "#2563EB";
 
 function TabIcon({ Icon, focused }) {
   return (
@@ -12,7 +12,7 @@ function TabIcon({ Icon, focused }) {
         width: 44,
         height: 36,
         borderRadius: 10,
-        backgroundColor: focused ? "#EEF0FF" : "transparent",
+        backgroundColor: focused ? "#EFF6FF" : "transparent",
         alignItems: "center",
         justifyContent: "center",
       }}

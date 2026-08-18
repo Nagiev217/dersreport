@@ -88,7 +88,8 @@ export default function LinkStudentModal({ visible, onClose, studentId, studentN
         t("linkParentSuccessMsg", { name: tName(found.name), student: tName(studentName) }),
         [{ text: t("linkParentSuccessOk"), onPress: handleClose }]
       );
-    } catch {
+    } catch (e) {
+      console.error("[LinkStudentModal] linkStudentToTeacher failed:", e?.code, e?.message);
       Alert.alert(t("error"), t("linkParentFailMsg"));
     } finally {
       setLinking(false);

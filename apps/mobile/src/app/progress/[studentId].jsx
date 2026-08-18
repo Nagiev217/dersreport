@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Path,
   Defs,
@@ -42,15 +43,20 @@ import { useReportsStore } from "@/utils/reports/store";
 import { useLessonsStore } from "@/utils/lessons/store";
 import AddEvaluationModal from "@/components/AddEvaluationModal";
 import AddGoalModal from "@/components/AddGoalModal";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 
-// ─── Palette ──────────────────────────────────────────────────────────────────
-
-const PURPLE = "#6B5CF6";
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT  = "#111827";
+const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
 const GREEN  = "#22C55E";
-const AMBER  = "#F59E0B";
+const AMBER  = "#D97706";
 const RED    = "#EF4444";
-const BLUE   = "#3B82F6";
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -128,7 +134,7 @@ function smoothPath(xs, ys) {
 
 // ─── Progress Ring (SVG) ──────────────────────────────────────────────────────
 
-const ProgressRing = ({ pct, size = 140, strokeW = 14, color = PURPLE }) => {
+const ProgressRing = ({ pct, size = 140, strokeW = 14, color = BLUE }) => {
   const r   = (size - strokeW) / 2;
   const cx  = size / 2;
   const cy  = size / 2;
@@ -137,7 +143,7 @@ const ProgressRing = ({ pct, size = 140, strokeW = 14, color = PURPLE }) => {
 
   return (
     <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={r} stroke="#F2F2F7" strokeWidth={strokeW} fill="none" />
+      <Circle cx={cx} cy={cy} r={r} stroke="#F1F5F9" strokeWidth={strokeW} fill="none" />
       {pct > 0 && (
         <Circle
           cx={cx}
@@ -192,8 +198,8 @@ const MiniLineChart = ({ data, color, gradId, width, height = 140 }) => {
         const y = toY(v);
         return (
           <G key={i}>
-            <Line x1={PL} y1={y.toFixed(1)} x2={(PL + cW).toFixed(1)} y2={y.toFixed(1)} stroke="#F2F2F7" strokeWidth="1" />
-            <SvgText x={(PL - 4).toFixed(1)} y={(y + 4).toFixed(1)} textAnchor="end" fontSize="9" fill="#AEAEB2">
+            <Line x1={PL} y1={y.toFixed(1)} x2={(PL + cW).toFixed(1)} y2={y.toFixed(1)} stroke="#F1F5F9" strokeWidth="1" />
+            <SvgText x={(PL - 4).toFixed(1)} y={(y + 4).toFixed(1)} textAnchor="end" fontSize="9" fill={SUB}>
               {v.toFixed(1)}
             </SvgText>
           </G>
@@ -207,7 +213,7 @@ const MiniLineChart = ({ data, color, gradId, width, height = 140 }) => {
         <G key={i}>
           <Circle cx={xs[i].toFixed(1)} cy={ys[i].toFixed(1)} r="4" fill={color} />
           <Circle cx={xs[i].toFixed(1)} cy={ys[i].toFixed(1)} r="2" fill="#FFF" />
-          <SvgText x={xs[i].toFixed(1)} y={height - 6} textAnchor="middle" fontSize="9" fill="#AEAEB2">
+          <SvgText x={xs[i].toFixed(1)} y={height - 6} textAnchor="middle" fontSize="9" fill={SUB}>
             {d.label}
           </SvgText>
         </G>
@@ -219,19 +225,19 @@ const MiniLineChart = ({ data, color, gradId, width, height = 140 }) => {
 // ─── UI primitives ────────────────────────────────────────────────────────────
 
 const Card = ({ children, style }) => (
-  <View style={[{ backgroundColor: "#FFF", borderRadius: 20, padding: 18, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, style]}>
+  <View style={[{ backgroundColor: "#FFF", borderRadius: 20, padding: 18, borderWidth: 1, borderColor: BORDER }, style]}>
     {children}
   </View>
 );
 
 const SectionTitle = ({ title, action, onAction }) => (
   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-    <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{title}</Text>
+    <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>{title}</Text>
     {action ? (
-      <TouchableOpacity activeOpacity={0.7} onPress={onAction} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#EEF0FF", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 }}>
-        <Plus size={13} color={PURPLE} />
-        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: PURPLE }}>{action}</Text>
-      </TouchableOpacity>
+      <PressableScale onPress={onAction} scaleTo={0.95} style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BLUE_50, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 }}>
+        <Plus size={13} color={BLUE} />
+        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: BLUE }}>{action}</Text>
+      </PressableScale>
     ) : null}
   </View>
 );
@@ -239,7 +245,7 @@ const SectionTitle = ({ title, action, onAction }) => (
 const MetricBadge = ({ label, value, color, bg }) => (
   <View style={{ flex: 1, backgroundColor: bg, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 10, alignItems: "center", gap: 4 }}>
     <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color, letterSpacing: -0.4 }}>{value}</Text>
-    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#8E8E93", textAlign: "center", lineHeight: 13 }}>{label}</Text>
+    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: SUB, textAlign: "center", lineHeight: 13 }}>{label}</Text>
   </View>
 );
 
@@ -254,7 +260,7 @@ const BarRow = ({ label, value, max = 5, color, icon: Icon }) => {
         </View>
         <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color }}>{value.toFixed(1)} / {max}</Text>
       </View>
-      <View style={{ height: 7, backgroundColor: "#F2F2F7", borderRadius: 4, overflow: "hidden" }}>
+      <View style={{ height: 7, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
         <View style={{ height: 7, width: `${pct}%`, backgroundColor: color, borderRadius: 4 }} />
       </View>
     </View>
@@ -263,26 +269,26 @@ const BarRow = ({ label, value, max = 5, color, icon: Icon }) => {
 
 // ─── Goal Card ────────────────────────────────────────────────────────────────
 
-const GOAL_COLORS = [PURPLE, BLUE, GREEN, AMBER];
+const GOAL_COLORS = [BLUE, INDIGO, GREEN, AMBER];
 
 const GoalCard = ({ goal, index, isParent, onEdit, onDelete }) => {
   const { t, months } = useT();
   const monthsShort = months(true);
   const STATUS_CFG = {
-    active:    { label: t("goalStatusActive"), color: GREEN,  bg: "#ECFDF5" },
-    paused:    { label: t("goalStatusPaused"), color: AMBER,  bg: "#FFFBEB" },
-    completed: { label: t("goalStatusDone"),   color: PURPLE, bg: "#EEF0FF" },
+    active:    { label: t("goalStatusActive"), color: GREEN, bg: "#ECFDF5" },
+    paused:    { label: t("goalStatusPaused"), color: AMBER, bg: "#FFFBEB" },
+    completed: { label: t("goalStatusDone"),   color: BLUE,  bg: BLUE_50 },
   };
   const st = STATUS_CFG[goal.status] ?? STATUS_CFG.active;
   const goalColor = GOAL_COLORS[index % GOAL_COLORS.length];
   const days = daysLeft(goal.deadline);
 
   return (
-    <View style={{ backgroundColor: "#FAFAFA", borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: goalColor }}>
+    <View style={{ backgroundColor: "#FAFBFC", borderRadius: 16, padding: 14, marginBottom: 10, borderLeftWidth: 3, borderLeftColor: goalColor }}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <View style={{ flex: 1, gap: 4 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1C1C1E", flex: 1 }} numberOfLines={2}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, flex: 1 }} numberOfLines={2}>
               {goal.title}
             </Text>
           </View>
@@ -294,12 +300,12 @@ const GoalCard = ({ goal, index, isParent, onEdit, onDelete }) => {
         </View>
         {!isParent && (
           <View style={{ flexDirection: "row", gap: 6, marginLeft: 10 }}>
-            <TouchableOpacity onPress={() => onEdit(goal)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}>
-              <Edit3 size={13} color={PURPLE} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => onDelete(goal.id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" }}>
+            <PressableScale onPress={() => onEdit(goal)} scaleTo={0.9} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center" }}>
+              <Edit3 size={13} color={BLUE} />
+            </PressableScale>
+            <PressableScale onPress={() => onDelete(goal.id)} scaleTo={0.9} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" }}>
               <Trash2 size={13} color={RED} />
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
       </View>
@@ -318,8 +324,8 @@ const GoalCard = ({ goal, index, isParent, onEdit, onDelete }) => {
         </View>
         {goal.deadline && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Calendar size={11} color="#8E8E93" />
-            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: days < 30 ? RED : "#8E8E93" }}>
+            <Calendar size={11} color={SUB} />
+            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: days < 30 ? RED : SUB }}>
               {days !== null && days >= 0 ? (days === 0 ? t("today") : `${days}${t("day_abbr")}`) : t("progressOverdue")} · {formatDeadline(goal.deadline, monthsShort)}
             </Text>
           </View>
@@ -336,16 +342,16 @@ const EvalRow = ({ ev, index, isParent, onDelete }) => {
   const avg = ((ev.activity + ev.comprehension + ev.homework + ev.behavior) / 4).toFixed(1);
   const color = avg >= 4 ? GREEN : avg >= 3 ? AMBER : RED;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: "#F2F2F7" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: index > 0 ? 1 : 0, borderTopColor: "#F1F5F9" }}>
       <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: color + "18", alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color }}>{avg}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }}>
+        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT }}>
           {ev.date}
         </Text>
         {ev.notes ? (
-          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93" }} numberOfLines={1}>{ev.notes}</Text>
+          <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB }} numberOfLines={1}>{ev.notes}</Text>
         ) : (
           <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#AEAEB2" }}>
             {`${t("progressEvalActAbbr")} ${ev.activity} · ${t("progressEvalCompAbbr")} ${ev.comprehension} · ${t("progressEvalHWAbbr")} ${ev.homework} · ${t("progressEvalBehAbbr")} ${ev.behavior}`}
@@ -353,9 +359,9 @@ const EvalRow = ({ ev, index, isParent, onDelete }) => {
         )}
       </View>
       {!isParent && (
-        <TouchableOpacity onPress={() => onDelete(ev.id)} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" }}>
+        <PressableScale onPress={() => onDelete(ev.id)} scaleTo={0.9} style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center" }}>
           <Trash2 size={12} color={RED} />
-        </TouchableOpacity>
+        </PressableScale>
       )}
     </View>
   );
@@ -475,11 +481,13 @@ export default function ProgressScreen() {
 
   if (!student) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center", padding: 32 }}>
-        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{t("studentNotFound")}</Text>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 16, backgroundColor: PURPLE, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}>
-          <Text style={{ color: "#FFF", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{t("back")}</Text>
-        </TouchableOpacity>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", padding: 32 }}>
+        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>{t("studentNotFound")}</Text>
+        <PressableScale onPress={() => router.back()} scaleTo={0.96} style={{ marginTop: 16, borderRadius: 12, overflow: "hidden" }}>
+          <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 24, paddingVertical: 12 }}>
+            <Text style={{ color: "#FFF", fontFamily: "Inter_600SemiBold", fontSize: 15 }}>{t("back")}</Text>
+          </LinearGradient>
+        </PressableScale>
       </View>
     );
   }
@@ -489,46 +497,37 @@ export default function ProgressScreen() {
   return (
     <>
       <ScrollView
-        style={{ flex: 1, backgroundColor: "#F2F2F7" }}
+        style={{ flex: 1, backgroundColor: "#FFFFFF" }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Header ── */}
-        <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            paddingTop: insets.top + 8,
-            paddingHorizontal: 20,
-            paddingBottom: 20,
-            shadowColor: "#000",
-            shadowOpacity: 0.05,
-            shadowRadius: 8,
-            elevation: 2,
-          }}
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
+        <LinearGradient
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.6, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 8, paddingHorizontal: 20, paddingBottom: 16 }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}
-            >
-              <ArrowLeft size={20} color="#1C1C1E" />
-            </TouchableOpacity>
+            <PressableScale onPress={() => router.back()} scaleTo={0.9} accessibilityRole="button" accessibilityLabel={t("back")} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}>
+              <ArrowLeft size={20} color={TEXT} />
+            </PressableScale>
             <View style={{ alignItems: "center" }}>
-              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{t("progressTitle")}</Text>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{tName(student.name)}</Text>
+              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT }}>{t("progressTitle")}</Text>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>{tName(student.name)}</Text>
             </View>
             {!isParent ? (
-              <TouchableOpacity
-                onPress={() => setShowEvalModal(true)}
-                style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}
-              >
-                <Plus size={20} color={PURPLE} />
-              </TouchableOpacity>
+              <PressableScale onPress={() => setShowEvalModal(true)} scaleTo={0.9} accessibilityRole="button" accessibilityLabel={t("progressGoalBtn")} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+                <Plus size={20} color="#FFFFFF" />
+              </PressableScale>
             ) : (
               <View style={{ width: 40 }} />
             )}
           </View>
-        </View>
+        </LinearGradient>
 
         <Animated.View style={{ opacity: fadeAnim }}>
           <View style={{ paddingHorizontal: 20, paddingTop: 20, gap: 16 }}>
@@ -538,16 +537,16 @@ export default function ProgressScreen() {
               <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
                 {/* Ring */}
                 <View style={{ width: 140, height: 140 }}>
-                  <ProgressRing pct={pIdx} size={140} strokeW={14} color={PURPLE} />
+                  <ProgressRing pct={pIdx} size={140} strokeW={14} color={BLUE} />
                   <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
-                    <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: "#1C1C1E", letterSpacing: -1 }}>{pIdx}%</Text>
-                    <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{t("progressIndexLabel")}</Text>
+                    <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -1 }}>{pIdx}%</Text>
+                    <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB }}>{t("progressIndexLabel")}</Text>
                   </View>
                 </View>
 
                 {/* Right stats */}
                 <View style={{ flex: 1, gap: 10 }}>
-                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{t("progressOverallTitle")}</Text>
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT }}>{t("progressOverallTitle")}</Text>
 
                   {/* Trend */}
                   {myEvals.length >= 2 && (
@@ -560,8 +559,8 @@ export default function ProgressScreen() {
 
                   {lastActivity && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <Clock size={12} color="#8E8E93" />
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
+                      <Clock size={12} color={SUB} />
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB }}>
                         {t("progressLastActivity")}{lastActivity}
                       </Text>
                     </View>
@@ -569,8 +568,8 @@ export default function ProgressScreen() {
 
                   {student.joinDate && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                      <Calendar size={12} color="#8E8E93" />
-                      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
+                      <Calendar size={12} color={SUB} />
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB }}>
                         {t("studentJoinDate")}{student.joinDate}
                       </Text>
                     </View>
@@ -581,15 +580,15 @@ export default function ProgressScreen() {
 
             {/* ── Key Metrics (4 badges) ── */}
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <MetricBadge label={t("progressAttend")} value={`${attendancePct}%`} color={attendancePct >= 90 ? GREEN : attendancePct >= 75 ? BLUE : AMBER} bg={attendancePct >= 90 ? "#ECFDF5" : attendancePct >= 75 ? "#EFF6FF" : "#FFFBEB"} />
-              <MetricBadge label={t("progressActivity")} value={myEvals.length ? allAvg.activity.toFixed(1) : "—"} color={PURPLE} bg="#EEF0FF" />
+              <MetricBadge label={t("progressAttend")} value={`${attendancePct}%`} color={attendancePct >= 90 ? GREEN : attendancePct >= 75 ? BLUE : AMBER} bg={attendancePct >= 90 ? "#ECFDF5" : attendancePct >= 75 ? BLUE_50 : "#FFFBEB"} />
+              <MetricBadge label={t("progressActivity")} value={myEvals.length ? allAvg.activity.toFixed(1) : "—"} color={BLUE} bg={BLUE_50} />
               <MetricBadge label={t("progressHWDone")} value={`${hwRatePct}%`} color={hwRatePct >= 80 ? GREEN : hwRatePct >= 60 ? AMBER : RED} bg={hwRatePct >= 80 ? "#ECFDF5" : hwRatePct >= 60 ? "#FFFBEB" : "#FEF2F2"} />
-              <MetricBadge label={t("progressLessons")} value={completedLessons} color={BLUE} bg="#EFF6FF" />
+              <MetricBadge label={t("progressLessons")} value={completedLessons} color={INDIGO} bg={INDIGO_50} />
             </View>
 
             {/* ── Second row of metrics ── */}
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <MetricBadge label={t("progressComprehension")} value={myEvals.length ? allAvg.comprehension.toFixed(1) : "—"} color="#8B5CF6" bg="#F5F3FF" />
+              <MetricBadge label={t("progressComprehension")} value={myEvals.length ? allAvg.comprehension.toFixed(1) : "—"} color={INDIGO} bg={INDIGO_50} />
               <MetricBadge label={t("progressBehavior")} value={myEvals.length ? allAvg.behavior.toFixed(1) : "—"} color={GREEN} bg="#ECFDF5" />
               <MetricBadge label={t("progressReports")} value={myReports.length} color="#EC4899" bg="#FDF2F8" />
               <MetricBadge label={t("progressEvals")} value={myEvals.length} color={AMBER} bg="#FFFBEB" />
@@ -599,8 +598,8 @@ export default function ProgressScreen() {
             {myEvals.length > 0 && (
               <Card>
                 <SectionTitle title={t("progressDetailedStats")} />
-                <BarRow label={t("progressActivity")} value={allAvg.activity} color={PURPLE} icon={Star} />
-                <BarRow label={t("progressComprehension")} value={allAvg.comprehension} color={BLUE} icon={BookOpen} />
+                <BarRow label={t("progressActivity")} value={allAvg.activity} color={BLUE} icon={Star} />
+                <BarRow label={t("progressComprehension")} value={allAvg.comprehension} color={INDIGO} icon={BookOpen} />
                 <BarRow label={t("progressHWDone")} value={allAvg.homework} color={GREEN} icon={CheckCircle} />
                 <BarRow label={t("progressBehavior")} value={allAvg.behavior} color={AMBER} icon={BarChart2} />
               </Card>
@@ -610,12 +609,12 @@ export default function ProgressScreen() {
             {activityChartData.length >= 2 && (
               <Card>
                 <SectionTitle title={t("progressActivityDynamic")} />
-                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93", marginBottom: 12 }}>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 12 }}>
                   {t("progressAvgScaleHint", { n: activityChartData.length })}
                 </Text>
                 <MiniLineChart
                   data={activityChartData}
-                  color={PURPLE}
+                  color={BLUE}
                   gradId="actGrad"
                   width={CHART_W}
                   height={150}
@@ -635,14 +634,14 @@ export default function ProgressScreen() {
                       <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "#3C3C43" }}>
                         {item.label}
                         {item.count > 0 ? (
-                          <Text style={{ fontFamily: "Inter_400Regular", color: "#8E8E93" }}> · {item.count} {t("progressEvalAbbr")}</Text>
+                          <Text style={{ fontFamily: "Inter_400Regular", color: SUB }}> · {item.count} {t("progressEvalAbbr")}</Text>
                         ) : null}
                       </Text>
                       <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: barColor }}>
                         {item.value > 0 ? `${item.value}%` : "—"}
                       </Text>
                     </View>
-                    <View style={{ height: 8, backgroundColor: "#F2F2F7", borderRadius: 4, overflow: "hidden" }}>
+                    <View style={{ height: 8, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
                       <View style={{ height: 8, width: `${pct}%`, backgroundColor: barColor, borderRadius: 4 }} />
                     </View>
                   </View>
@@ -661,7 +660,7 @@ export default function ProgressScreen() {
               return hasData ? (
                 <Card>
                   <SectionTitle title={t("progressHWTitle")} />
-                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93", marginBottom: 14 }}>
+                  <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 14 }}>
                     {t("progressHWChartHint")}
                   </Text>
                   {hwData.map((item, i) => {
@@ -674,7 +673,7 @@ export default function ProgressScreen() {
                             {item.value > 0 ? `${item.value}%` : "—"}
                           </Text>
                         </View>
-                        <View style={{ height: 7, backgroundColor: "#F2F2F7", borderRadius: 4, overflow: "hidden" }}>
+                        <View style={{ height: 7, backgroundColor: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
                           <View style={{ height: 7, width: `${item.value}%`, backgroundColor: clr, borderRadius: 4 }} />
                         </View>
                       </View>
@@ -694,7 +693,7 @@ export default function ProgressScreen() {
               {myGoals.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 24 }}>
                   <Target size={32} color="#C7C7CC" />
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: "#8E8E93", marginTop: 10, textAlign: "center" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: SUB, marginTop: 10, textAlign: "center" }}>
                     {isParent ? t("progressNoGoals") : t("progressNoGoalsTeacher")}
                   </Text>
                 </View>
@@ -722,7 +721,7 @@ export default function ProgressScreen() {
               {myEvals.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 24 }}>
                   <Star size={32} color="#C7C7CC" />
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: "#8E8E93", marginTop: 10, textAlign: "center" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: SUB, marginTop: 10, textAlign: "center" }}>
                     {isParent ? t("progressNoEvals") : t("progressNoEvalsTeacher")}
                   </Text>
                 </View>
@@ -739,7 +738,7 @@ export default function ProgressScreen() {
                   ))}
                   {!showAllEvals && myEvals.length > 5 && (
                     <TouchableOpacity onPress={() => setShowAllEvals(true)} style={{ paddingTop: 12, alignItems: "center" }}>
-                      <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: PURPLE }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: BLUE }}>
                         {t("progressShowAll", { n: myEvals.length })}
                       </Text>
                     </TouchableOpacity>

@@ -123,6 +123,8 @@ export default function CreateScheduleModal({ visible, onClose, editSchedule }) 
     { value: "weekly",   label: t("scheduleWeekly") },
     { value: "biweekly", label: t("scheduleBiweekly") },
     { value: "monthly",  label: t("scheduleMonthly") },
+    { value: "odd",      label: t("scheduleOddDays") },
+    { value: "even",     label: t("scheduleEvenDays") },
   ];
   const SUBJECT_LABELS = { "Английский": t("addLessonSubjectEnglish") };
 
@@ -175,19 +177,22 @@ export default function CreateScheduleModal({ visible, onClose, editSchedule }) 
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
 
+  const isParity = frequency === "odd" || frequency === "even";
+
   const estimatedCount = () => {
     if (endMode === "count") return lessonsCount;
     if (!startDate || !endDate) return 0;
-    const freqDays = frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : 28;
+    const freqDays = isParity ? 2 : frequency === "weekly" ? 7 : frequency === "biweekly" ? 14 : 28;
     const ms =
       new Date(endDate + "T12:00:00").getTime() -
       new Date(startDate + "T12:00:00").getTime();
     return ms <= 0 ? 0 : Math.floor(ms / (freqDays * 86400000)) + 1;
   };
 
+  // Parity schedules (odd/even calendar days) don't use a weekday.
   const canSave =
     studentIds.length > 0 &&
-    dayOfWeek !== null &&
+    (dayOfWeek !== null || isParity) &&
     /^\d{2}:\d{2}$/.test(time) &&
     /^\d{4}-\d{2}-\d{2}$/.test(startDate);
 
@@ -217,7 +222,7 @@ export default function CreateScheduleModal({ visible, onClose, editSchedule }) 
 
     const selectedStudents = students.filter((s) => studentIds.includes(s.id));
     const scheduleData = {
-      id: editSchedule?.id ?? `sch-${Date.now()}`,
+      id: editSchedule?.id ?? `sch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       studentIds,
       studentNames: selectedStudents.map((s) => s.name),
       subject,
@@ -376,7 +381,8 @@ export default function CreateScheduleModal({ visible, onClose, editSchedule }) 
                   </View>
                 </View>
 
-                {/* Day of week */}
+                {/* Day of week — hidden for parity (odd/even) schedules */}
+                {!isParity && (
                 <View style={{ marginBottom: 20 }}>
                   <SectionLabel>{t("createSchedDay")}</SectionLabel>
                   <View style={{ flexDirection: "row", gap: 5 }}>
@@ -409,6 +415,7 @@ export default function CreateScheduleModal({ visible, onClose, editSchedule }) 
                     })}
                   </View>
                 </View>
+                )}
 
                 {/* Time + Format row */}
                 <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>

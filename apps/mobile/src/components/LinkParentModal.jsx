@@ -93,7 +93,8 @@ export default function LinkParentModal({
           setFound(result);
         }
       }
-    } catch {
+    } catch (e) {
+      console.error("[LinkParentModal] lookupParentByCode failed:", e?.code, e?.message);
       setError(t("linkParentNetError"));
     } finally {
       setLooking(false);
@@ -126,7 +127,7 @@ export default function LinkParentModal({
       } else {
         // Add new parent record
         addParent({
-          id: `parent-${Date.now()}`,
+          id: `parent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: found.name,
           phone: "",
           email: "",
@@ -143,7 +144,8 @@ export default function LinkParentModal({
         t("linkParentSuccessMsg", { name: tName(found.name), student: tName(studentName) }),
         [{ text: t("linkParentSuccessOk"), onPress: handleClose }]
       );
-    } catch {
+    } catch (e) {
+      console.error("[LinkParentModal] linkParentToStudent failed:", e?.code, e?.message);
       Alert.alert(t("error"), t("linkParentFailMsg"));
     } finally {
       setLinking(false);

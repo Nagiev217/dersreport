@@ -1,16 +1,26 @@
 import { useState } from "react";
 import {
-  View, Text, ScrollView, TextInput, TouchableOpacity,
+  View, Text, ScrollView, TextInput,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { GraduationCap, Users, BookOpen, ShieldCheck, ShieldAlert, Eye, EyeOff } from "lucide-react-native";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
+import { GraduationCap, Users, BookOpen, ShieldCheck, ShieldAlert, Eye, EyeOff, UserPlus } from "lucide-react-native";
 import { createManagedAccount } from "@/utils/firebase/adminAccounts";
 import { useMyRole } from "@/utils/auth/useMyRole";
 import { canManageAccounts } from "@/utils/auth/permissions";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 
-const NAVY = "#22447A";
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT  = "#111827";
+const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
 
 const ROLE_OPTS = [
   { key: "teacher", icon: GraduationCap, labelKey: "roleTeacherTitle" },
@@ -58,9 +68,9 @@ export default function CreateAccountScreen() {
   // real gate is server-side (functions/index.js requireStaffCaller(['boss'])).
   if (myRole !== null && !canManageAccounts(myRole)) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center", padding: 32 }}>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <ShieldAlert size={40} color="#EF4444" />
-        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1C1C1E", marginTop: 14, textAlign: "center" }}>
+        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT, marginTop: 14, textAlign: "center" }}>
           {t("adminNoAccess")}
         </Text>
       </View>
@@ -68,97 +78,138 @@ export default function CreateAccountScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: "#FFFFFF" }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView
-        style={{ flex: 1, backgroundColor: "#F2F2F7" }}
-        contentContainerStyle={{ paddingTop: insets.top + 20, paddingHorizontal: 20, paddingBottom: insets.bottom + 40 }}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 4 }}>
-          {t("adminCreateTitle")}
-        </Text>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", marginBottom: 24 }}>
-          {t("adminCreateSubtitle")}
-        </Text>
-
-        {/* Role picker */}
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-          {ROLE_OPTS.map(({ key, icon: Icon, labelKey }) => {
-            const active = role === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                onPress={() => setRole(key)}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1, alignItems: "center", gap: 6, paddingVertical: 14, borderRadius: 14,
-                  backgroundColor: active ? NAVY : "#FFFFFF",
-                  borderWidth: active ? 0 : 1, borderColor: "#E5E5EA",
-                }}
-              >
-                <Icon size={18} color={active ? "#FFFFFF" : "#8E8E93"} />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: active ? "#FFFFFF" : "#1C1C1E" }}>
-                  {t(labelKey)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {[
-          { label: t("adminFieldFirstName"), value: firstName, onChangeText: setFirstName },
-          { label: t("adminFieldLastName"),  value: lastName,  onChangeText: setLastName },
-          { label: t("adminFieldEmail"),     value: email,     onChangeText: setEmail, keyboardType: "email-address", autoCapitalize: "none" },
-        ].map((f, i) => (
-          <View key={i} style={{ marginBottom: 14 }}>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1C1C1E", marginBottom: 6 }}>{f.label}</Text>
-            <TextInput
-              value={f.value}
-              onChangeText={f.onChangeText}
-              keyboardType={f.keyboardType}
-              autoCapitalize={f.autoCapitalize ?? "words"}
-              placeholderTextColor="#C7C7CC"
-              style={{
-                height: 50, borderRadius: 14, backgroundColor: "#FFFFFF",
-                borderWidth: 1.5, borderColor: "#E5E5EA", paddingHorizontal: 16,
-                fontSize: 15, fontFamily: "Inter_400Regular", color: "#1C1C1E",
-              }}
-            />
-          </View>
-        ))}
-
-        <View style={{ marginBottom: 24 }}>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1C1C1E", marginBottom: 6 }}>
-            {t("adminFieldPassword")}
-          </Text>
-          <View style={{
-            flexDirection: "row", alignItems: "center", height: 50, borderRadius: 14,
-            backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: "#E5E5EA", paddingHorizontal: 16,
-          }}>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPass}
-              autoCapitalize="none"
-              style={{ flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: "#1C1C1E" }}
-            />
-            <TouchableOpacity onPress={() => setShowPass((v) => !v)}>
-              {showPass ? <EyeOff size={18} color="#8E8E93" /> : <Eye size={18} color="#8E8E93" />}
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleCreate}
-          disabled={!canSubmit}
-          activeOpacity={0.85}
-          style={{ height: 52, borderRadius: 16, backgroundColor: canSubmit ? NAVY : "#C7C7CC", alignItems: "center", justifyContent: "center" }}
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
+        <LinearGradient
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.55, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
         >
-          {loading
-            ? <ActivityIndicator color="#FFFFFF" />
-            : <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{t("adminCreateSubmit")}</Text>
-          }
-        </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+              <UserPlus size={18} color="#FFFFFF" strokeWidth={2} />
+            </View>
+            <View>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>Jeff</Text>
+              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>Colleges</Text>
+            </View>
+          </View>
+
+          <Animated.View entering={FadeInDown.duration(380).easing(Easing.out(Easing.cubic))}>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 }}>
+              {t("adminCreateTitle")}
+            </Text>
+            <Text style={{ fontSize: 13.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 4 }}>
+              {t("adminCreateSubtitle")}
+            </Text>
+          </Animated.View>
+        </LinearGradient>
+
+        {/* ── SECTION 2 — Form (white) ── */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 22 }}>
+          {/* Role picker */}
+          <Animated.View entering={FadeInDown.delay(40).duration(320)}>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+              {ROLE_OPTS.map(({ key, icon: Icon, labelKey }) => {
+                const active = role === key;
+                return (
+                  <PressableScale
+                    key={key}
+                    onPress={() => setRole(key)}
+                    scaleTo={0.95}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(labelKey)}
+                    accessibilityState={{ selected: active }}
+                    style={{
+                      flex: 1, alignItems: "center", gap: 6, paddingVertical: 14, borderRadius: 14,
+                      backgroundColor: active ? BLUE : "#FFFFFF",
+                      borderWidth: 1, borderColor: active ? BLUE : BORDER,
+                    }}
+                  >
+                    <Icon size={18} color={active ? "#FFFFFF" : SUB} />
+                    <Text numberOfLines={1} style={{ fontSize: 11.5, fontFamily: "Inter_600SemiBold", color: active ? "#FFFFFF" : TEXT }}>
+                      {t(labelKey)}
+                    </Text>
+                  </PressableScale>
+                );
+              })}
+            </View>
+          </Animated.View>
+
+          {[
+            { label: t("adminFieldFirstName"), value: firstName, onChangeText: setFirstName },
+            { label: t("adminFieldLastName"),  value: lastName,  onChangeText: setLastName },
+            { label: t("adminFieldEmail"),     value: email,     onChangeText: setEmail, keyboardType: "email-address", autoCapitalize: "none" },
+          ].map((f, i) => (
+            <Animated.View key={i} entering={FadeInDown.delay(80 + i * 40).duration(320)} style={{ marginBottom: 14 }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 6 }}>{f.label}</Text>
+              <TextInput
+                value={f.value}
+                onChangeText={f.onChangeText}
+                keyboardType={f.keyboardType}
+                autoCapitalize={f.autoCapitalize ?? "words"}
+                placeholderTextColor="#C7C7CC"
+                style={{
+                  height: 50, borderRadius: 14, backgroundColor: "#FFFFFF",
+                  borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 16,
+                  fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT,
+                }}
+              />
+            </Animated.View>
+          ))}
+
+          <Animated.View entering={FadeInDown.delay(200).duration(320)} style={{ marginBottom: 24 }}>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 6 }}>
+              {t("adminFieldPassword")}
+            </Text>
+            <View style={{
+              flexDirection: "row", alignItems: "center", height: 50, borderRadius: 14,
+              backgroundColor: "#FFFFFF", borderWidth: 1.5, borderColor: BORDER, paddingHorizontal: 16,
+            }}>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPass}
+                autoCapitalize="none"
+                style={{ flex: 1, fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT }}
+              />
+              <PressableScale onPress={() => setShowPass((v) => !v)} scaleTo={0.85} accessibilityRole="button" accessibilityLabel={t("adminFieldPassword")}>
+                {showPass ? <EyeOff size={18} color={SUB} /> : <Eye size={18} color={SUB} />}
+              </PressableScale>
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(240).duration(320)}>
+            <PressableScale
+              onPress={handleCreate}
+              disabled={!canSubmit}
+              scaleTo={0.97}
+              accessibilityRole="button"
+              accessibilityLabel={t("adminCreateSubmit")}
+              style={{ borderRadius: 16, overflow: "hidden" }}
+            >
+              <LinearGradient
+                colors={canSubmit ? [BLUE, INDIGO] : ["#C7C7CC", "#C7C7CC"]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ height: 52, alignItems: "center", justifyContent: "center" }}
+              >
+                {loading
+                  ? <ActivityIndicator color="#FFFFFF" />
+                  : <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{t("adminCreateSubmit")}</Text>
+                }
+              </LinearGradient>
+            </PressableScale>
+          </Animated.View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

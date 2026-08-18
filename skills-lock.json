@@ -1,6 +1,366 @@
 {
   "version": 1,
   "skills": {
+    "abusing-dpapi-for-credential-access": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/abusing-dpapi-for-credential-access/SKILL.md",
+      "computedHash": "c386751c627846f4a958b03c90087a9d316dc871d60d6d424a7e1d4203f969d4"
+    },
+    "abusing-shadow-credentials-for-privesc": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/abusing-shadow-credentials-for-privesc/SKILL.md",
+      "computedHash": "99b8fc119c33367c6c58531e5efe3cd34306a8c7b2b68a3c60f7d86f98c4309f"
+    },
+    "achieving-cmmc-level-2-compliance": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/achieving-cmmc-level-2-compliance/SKILL.md",
+      "computedHash": "c73f4d743b2858f335265e8d8b79059d0e9640934139833a16c5ef77925e915f"
+    },
+    "acquiring-disk-image-with-dd-and-dcfldd": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/acquiring-disk-image-with-dd-and-dcfldd/SKILL.md",
+      "computedHash": "d2c2cc9430c446a12ed2f85a6711be7ee1ab7ad5977f1b4aa1912255daf2ba1d"
+    },
+    "analyzing-active-directory-acl-abuse": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-active-directory-acl-abuse/SKILL.md",
+      "computedHash": "e8395f89086ad86d0775013201114f2d4ec0579dda51a53373858774e8e36299"
+    },
+    "analyzing-android-malware-with-apktool": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-android-malware-with-apktool/SKILL.md",
+      "computedHash": "8d77806fccda055e4fa1ca0eb7042360c66cf916224b5fb508ce05759a90a62c"
+    },
+    "analyzing-api-gateway-access-logs": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-api-gateway-access-logs/SKILL.md",
+      "computedHash": "963d2718732af438176f0a9672a0e23b7c408d93a5a8be7e781d40c953287aff"
+    },
+    "analyzing-apt-group-with-mitre-navigator": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-apt-group-with-mitre-navigator/SKILL.md",
+      "computedHash": "9f085510b25f05374d958647353d5aac41d942163e2b17d7f6b8ae2ffb11e3a1"
+    },
+    "analyzing-azure-activity-logs-for-threats": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-azure-activity-logs-for-threats/SKILL.md",
+      "computedHash": "29ba18937c1b3822a63cac2f87134f31f5fc623523e5f1ac296ae16e66557e80"
+    },
+    "analyzing-bootkit-and-rootkit-samples": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-bootkit-and-rootkit-samples/SKILL.md",
+      "computedHash": "cd97417e4eb682f4ef6a1afab77cf1fd609240d76bf39653a11924e752a5f0ca"
+    },
+    "analyzing-browser-forensics-with-hindsight": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-browser-forensics-with-hindsight/SKILL.md",
+      "computedHash": "ff5be7ddbc5becc309b28c46bb14c0066de7ca08b5e3856e34f37f7964b8322f"
+    },
+    "analyzing-campaign-attribution-evidence": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-campaign-attribution-evidence/SKILL.md",
+      "computedHash": "ced07e17fa5d79a3d7cc8fbe52a9518e508d3d01ac7824e078eb8e5561893160"
+    },
+    "analyzing-certificate-transparency-for-phishing": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-certificate-transparency-for-phishing/SKILL.md",
+      "computedHash": "9b8d6ca0fc46488045f60550519940cde661baf52b778aedf9fbfff9e6a65a7d"
+    },
+    "analyzing-cloud-storage-access-patterns": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-cloud-storage-access-patterns/SKILL.md",
+      "computedHash": "d8e9ccf5fd1cd33744d3ee77ebf27dcdaa3bbddd62de602ba500e6d950a8abca"
+    },
+    "analyzing-cobalt-strike-beacon-configuration": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-cobalt-strike-beacon-configuration/SKILL.md",
+      "computedHash": "d7028e357f15bf61dade7920a4f3417780000adee76f1ba1abd469ab02fa1acc"
+    },
+    "analyzing-cobaltstrike-malleable-c2-profiles": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-cobaltstrike-malleable-c2-profiles/SKILL.md",
+      "computedHash": "a60419cf00e427abd3f5c60885d8a271ed4781aba525b244b023615f47280f4d"
+    },
+    "analyzing-command-and-control-communication": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-command-and-control-communication/SKILL.md",
+      "computedHash": "dff3fd8d41fd3194574e46d461ad7253a6ec56cd929e20318e6630a2d1323172"
+    },
+    "analyzing-cyber-kill-chain": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-cyber-kill-chain/SKILL.md",
+      "computedHash": "deee84ad5e512a2342c4f2483d5d19a342ba211b5afff4fa56d6af2817cdb732"
+    },
+    "analyzing-disk-image-with-autopsy": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-disk-image-with-autopsy/SKILL.md",
+      "computedHash": "8d76f614183a828215135d7605c0003d4421ac03b43ced1f65b370ccdbcfb281"
+    },
+    "analyzing-dns-logs-for-exfiltration": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-dns-logs-for-exfiltration/SKILL.md",
+      "computedHash": "32df2e6be01a35fff77e043213addbfa650d7b11a62187087d74a8ab2eb0dc52"
+    },
+    "analyzing-docker-container-forensics": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-docker-container-forensics/SKILL.md",
+      "computedHash": "0fc26eb8ff85a648b23a7dc5931da5da8ebc17f08ad2315fc54fa9c69f0dfdf8"
+    },
+    "analyzing-email-headers-for-phishing-investigation": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-email-headers-for-phishing-investigation/SKILL.md",
+      "computedHash": "a86e67a729550a99dbe826850733d3afa502f7fe1184337339895edfda9c5669"
+    },
+    "analyzing-ethereum-smart-contract-vulnerabilities": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ethereum-smart-contract-vulnerabilities/SKILL.md",
+      "computedHash": "d9189f14995b5c68e5a570dea4e5c04a6e074ea3e3ae1603f35afc782fb11414"
+    },
+    "analyzing-golang-malware-with-ghidra": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-golang-malware-with-ghidra/SKILL.md",
+      "computedHash": "6a4cc52ece09c02f7e5c06dbf929ecd820df5a6a3ef3abc4468ccb3ebf7d6bbe"
+    },
+    "analyzing-heap-spray-exploitation": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-heap-spray-exploitation/SKILL.md",
+      "computedHash": "dc4d35be8f0b550437459d07b9b372a002f58629cefa9465ca215f8c6d74f0f0"
+    },
+    "analyzing-indicators-of-compromise": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-indicators-of-compromise/SKILL.md",
+      "computedHash": "83c26d51f37e14316432c0c11baf726feae079af5c33340e7e6889ab2cfb4946"
+    },
+    "analyzing-ios-app-security-with-objection": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ios-app-security-with-objection/SKILL.md",
+      "computedHash": "5c35d081f0aa3d7939ac77592bd49ec24c4e37319cab57d12c3eb9bedfe9c338"
+    },
+    "analyzing-kubernetes-audit-logs": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-kubernetes-audit-logs/SKILL.md",
+      "computedHash": "e47460baa921b062bb14b4d52796b2aaf24ec751dfa6a6125f0a5cf53bd280bf"
+    },
+    "analyzing-linux-audit-logs-for-intrusion": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-linux-audit-logs-for-intrusion/SKILL.md",
+      "computedHash": "dc6a8d976607a2c25e760dbb92305f7e0118c95359d1c2072275ddd6a780dc4b"
+    },
+    "analyzing-linux-elf-malware": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-linux-elf-malware/SKILL.md",
+      "computedHash": "72d4d274aeae2fd3628ac9922344db129ba11b8d773b78b8b5048eaf5f24cf33"
+    },
+    "analyzing-linux-kernel-rootkits": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-linux-kernel-rootkits/SKILL.md",
+      "computedHash": "52b3c20e3e2568ea8b246d8c33c42d28a9f86f19cc017af7575de206de0bca29"
+    },
+    "analyzing-linux-system-artifacts": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-linux-system-artifacts/SKILL.md",
+      "computedHash": "73e9065198fb242c6c9e36c3bdc1dce9946ee62c0d0111c4d1fd7ae17ddc6834"
+    },
+    "analyzing-lnk-file-and-jump-list-artifacts": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-lnk-file-and-jump-list-artifacts/SKILL.md",
+      "computedHash": "6e2d19610c6c3af5d0b09c6e4fa18c50869b8731bd8618879767f1591093f580"
+    },
+    "analyzing-macro-malware-in-office-documents": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-macro-malware-in-office-documents/SKILL.md",
+      "computedHash": "098742f2299cc86090774d35ef52b6bf75abd90b9a3455bf701e1bd297dcbaa4"
+    },
+    "analyzing-malicious-pdf-with-peepdf": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malicious-pdf-with-peepdf/SKILL.md",
+      "computedHash": "0e0a890bf8def2d0e0a0da6d3ed9d85a7c8ee80b31a1262731592d16785a4d37"
+    },
+    "analyzing-malicious-url-with-urlscan": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malicious-url-with-urlscan/SKILL.md",
+      "computedHash": "dc9e9e2e7ea4886fc596913c49a8fbf258a001077f075e23bb779b31643050bd"
+    },
+    "analyzing-malware-behavior-with-cuckoo-sandbox": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malware-behavior-with-cuckoo-sandbox/SKILL.md",
+      "computedHash": "d26d842b782b2dfe69467520f2899252a22bec98ea20e017ea21457ceb54a62f"
+    },
+    "analyzing-malware-family-relationships-with-malpedia": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malware-family-relationships-with-malpedia/SKILL.md",
+      "computedHash": "6dbcf41c7c88819a6d147a82d257f09d2939f72fe092fd98ec262763f0ee58b2"
+    },
+    "analyzing-malware-persistence-with-autoruns": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malware-persistence-with-autoruns/SKILL.md",
+      "computedHash": "aaa993397bb89aa00f95f4dd79f41f05c466337a99a9db444e339412daf7c2a3"
+    },
+    "analyzing-malware-sandbox-evasion-techniques": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-malware-sandbox-evasion-techniques/SKILL.md",
+      "computedHash": "77390395e830f8351cf70a3610a565944082bd0aa2ca7133b4f96d4ddf4a270d"
+    },
+    "analyzing-memory-dumps-with-volatility": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-memory-dumps-with-volatility/SKILL.md",
+      "computedHash": "856eeab66234b7ffcf61e84864b1aed3b9b8519d5a407c561fc4a50879b2801e"
+    },
+    "analyzing-memory-forensics-with-lime-and-volatility": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-memory-forensics-with-lime-and-volatility/SKILL.md",
+      "computedHash": "5b687aa34df1936667b1b22376d7984f27bc2b02c67aded4e95e4798e3f44cac"
+    },
+    "analyzing-mft-for-deleted-file-recovery": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-mft-for-deleted-file-recovery/SKILL.md",
+      "computedHash": "9edb559712453fb6a9f86c9a0b3cd9ee6ef10153eeaff3228dfe525cec0e4487"
+    },
+    "analyzing-network-covert-channels-in-malware": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-covert-channels-in-malware/SKILL.md",
+      "computedHash": "1e4011c5889dec6430781c2893978b95ea2bfc58501e84b986c3b01fb8dbacff"
+    },
+    "analyzing-network-flow-data-with-netflow": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-flow-data-with-netflow/SKILL.md",
+      "computedHash": "84c60f161a1f6c4acb2528fb269068bc80d260c0a593b4f44cb078754c634e79"
+    },
+    "analyzing-network-packets-with-scapy": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-packets-with-scapy/SKILL.md",
+      "computedHash": "16d1958012ca2d0039934498ce74f66366b2468660d2865fb77b6b450b54ad6b"
+    },
+    "analyzing-network-traffic-for-incidents": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-traffic-for-incidents/SKILL.md",
+      "computedHash": "439337f74af8427ffdabfffc7cdb5785f5d1e094ce4bd9be97ed6c091d7fef90"
+    },
+    "analyzing-network-traffic-of-malware": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-traffic-of-malware/SKILL.md",
+      "computedHash": "59171bfbf36fe03d81437409bb5f5a8fc401747f06cc40e8c237321a430a55ad"
+    },
+    "analyzing-network-traffic-with-wireshark": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-network-traffic-with-wireshark/SKILL.md",
+      "computedHash": "eaca4d650732263ba800b09f7982904d20e0bbcb7370b06de7feaf63d693be16"
+    },
+    "analyzing-office365-audit-logs-for-compromise": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-office365-audit-logs-for-compromise/SKILL.md",
+      "computedHash": "15b42d399edc076a212fb487d73c006ec5b3b9488759404af72377ec2bc331bd"
+    },
+    "analyzing-outlook-pst-for-email-forensics": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-outlook-pst-for-email-forensics/SKILL.md",
+      "computedHash": "740bde723addea1b46bea97d0b7a4b0eb6cb9367d49bfbc82123458933d3363b"
+    },
+    "analyzing-packed-malware-with-upx-unpacker": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-packed-malware-with-upx-unpacker/SKILL.md",
+      "computedHash": "e7f695d0890089759395a691eeabe9ca299fb2ce495af8dd45e5f07283d97f83"
+    },
+    "analyzing-pdf-malware-with-pdfid": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-pdf-malware-with-pdfid/SKILL.md",
+      "computedHash": "a65f4463584ee023c422ed729559840eaeb7407f81bfbaa7bf8a44e937a4926e"
+    },
+    "analyzing-persistence-mechanisms-in-linux": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-persistence-mechanisms-in-linux/SKILL.md",
+      "computedHash": "3798742791a0a4d1804cd45dd8f263494ac56006605a062171ba01659e4055ba"
+    },
+    "analyzing-powershell-empire-artifacts": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-powershell-empire-artifacts/SKILL.md",
+      "computedHash": "981ef131e4cbf6b9f39111d5ea0b68a56a82867185d03463034b0279544c3e69"
+    },
+    "analyzing-powershell-script-block-logging": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-powershell-script-block-logging/SKILL.md",
+      "computedHash": "b11d0fc71bb6d209be779d6dc7069f8d34bc321f412de3ae8844dfea08800ef5"
+    },
+    "analyzing-ransomware-encryption-mechanisms": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ransomware-encryption-mechanisms/SKILL.md",
+      "computedHash": "9b0e31bc1748a72290d33978e00e91b05e832f18dc00664a18e80c7efb7cc42e"
+    },
+    "analyzing-ransomware-leak-site-intelligence": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ransomware-leak-site-intelligence/SKILL.md",
+      "computedHash": "7919eac1946a897633c25f178d7ddb66185f19e7801eac6baa498cb7db112929"
+    },
+    "analyzing-ransomware-network-indicators": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ransomware-network-indicators/SKILL.md",
+      "computedHash": "057a52b4f6d89f5ec034832b22a1d6e42442648c712cb9fbe86168063ee6c111"
+    },
+    "analyzing-ransomware-payment-wallets": {
+      "source": "mukul975/Anthropic-Cybersecurity-Skills",
+      "sourceType": "github",
+      "skillPath": "skills/analyzing-ransomware-payment-wallets/SKILL.md",
+      "computedHash": "b982c09ae3c86e28b4dc70fa4961d29ed7b113399625ef13f66da839ecdb8cca"
+    },
     "animation-vocabulary": {
       "source": "emilkowalski/skills",
       "sourceType": "github",

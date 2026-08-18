@@ -79,6 +79,7 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
   const { t } = useT();
   const { addEvaluation, updateEvaluation, evaluations } = useProgressStore();
 
+  const [attendance, setAttendance] = useState("present"); // present | late | absent
   const [activity, setActivity] = useState(0);
   const [comprehension, setComprehension] = useState(0);
   const [homework, setHomework] = useState(0);
@@ -86,6 +87,7 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
   const [notes, setNotes] = useState("");
 
   const reset = () => {
+    setAttendance("present");
     setActivity(0);
     setComprehension(0);
     setHomework(0);
@@ -98,7 +100,10 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
     onClose();
   };
 
-  const canSave = activity > 0 && comprehension > 0 && homework > 0 && behavior > 0;
+  // An "absent" record needs no per-skill scores; present/late require them.
+  const canSave =
+    attendance === "absent" ||
+    (activity > 0 && comprehension > 0 && homework > 0 && behavior > 0);
 
   const handleSave = () => {
     if (!canSave) return;
@@ -107,14 +112,16 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
+    const absent = attendance === "absent";
     addEvaluation({
-      id: `ev-${studentId}-${Date.now()}`,
+      id: `ev-${studentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       studentId,
       date: dateStr,
-      activity,
-      comprehension,
-      homework,
-      behavior,
+      attendance,
+      activity: absent ? 0 : activity,
+      comprehension: absent ? 0 : comprehension,
+      homework: absent ? 0 : homework,
+      behavior: absent ? 0 : behavior,
       notes: notes.trim(),
       createdAt: Date.now(),
     });
@@ -172,10 +179,45 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ marginTop: 16 }}>
+                {/* Attendance */}
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "#3C3C43", marginBottom: 8 }}>
+                    {t("evalAttendance")}
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    {[
+                      { key: "present", label: t("attnPresent"), color: "#22C55E" },
+                      { key: "late",    label: t("attnLate"),    color: "#F59E0B" },
+                      { key: "absent",  label: t("attnAbsent"),  color: "#EF4444" },
+                    ].map(({ key, label, color }) => {
+                      const active = attendance === key;
+                      return (
+                        <TouchableOpacity
+                          key={key}
+                          activeOpacity={0.75}
+                          onPress={() => setAttendance(key)}
+                          style={{
+                            flex: 1, height: 44, borderRadius: 12,
+                            backgroundColor: active ? color : "#F2F2F7",
+                            alignItems: "center", justifyContent: "center",
+                            borderWidth: active ? 0 : 1, borderColor: "#E5E5EA",
+                          }}
+                        >
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: active ? "#FFFFFF" : "#3C3C43" }}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {attendance !== "absent" && (<>
                 <ScorePicker label={t("evalActivity")} value={activity} onChange={setActivity} />
                 <ScorePicker label={t("evalComprehension")} value={comprehension} onChange={setComprehension} />
                 <ScorePicker label={t("evalHomework")} value={homework} onChange={setHomework} />
                 <ScorePicker label={t("evalBehavior")} value={behavior} onChange={setBehavior} />
+                </>)}
 
                 {/* Notes */}
                 <View style={{ marginBottom: 24 }}>
@@ -204,7 +246,7 @@ export default function AddEvaluationModal({ visible, onClose, studentId, studen
                 </View>
 
                 {/* Avg preview */}
-                {canSave && (
+                {canSave && attendance !== "absent" && (
                   <View
                     style={{
                       backgroundColor: "#EEF0FF",

@@ -15,15 +15,26 @@ import {
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, IS_FIREBASE_READY } from "@/utils/firebase/config";
+import { getUserDoc } from "@/utils/firebase/users";
+import { prefetchAdminDashboard } from "@/utils/firebase/adminAccounts";
 import { loadAllStores, saveStore } from "@/utils/firebase/firestore";
 import { useStudentsStore } from "@/utils/students/store";
 import { useLessonsStore } from "@/utils/lessons/store";
 import { usePaymentsStore } from "@/utils/payments/store";
 import { useScheduleStore } from "@/utils/schedule/store";
 import { useProgressStore } from "@/utils/progress/store";
-import { useReportsStore } from "@/utils/reports/store";
+import { useReportsStore, setReportsRemoteAdapter } from "@/utils/reports/store";
+import {
+  addReportRemote,
+  updateReportRemote,
+  deleteReportRemote,
+  subscribeToReports,
+} from "@/utils/reports/firestoreSync";
 import { useGroupsStore } from "@/utils/groups/store";
 import { useParentsStore } from "@/utils/parents/store";
+import { useHomeworkStore } from "@/utils/homework/store";
+import { useWritingStore } from "@/utils/writing/store";
+import { useExamsStore } from "@/utils/exams/store";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -39,18 +50,27 @@ const queryClient = new QueryClient({
 });
 
 const SYNC_DEBOUNCE = 1500;
-// Stores where any change is immediately critical (e.g. add/delete)
-const IMMEDIATE_STORES = new Set(["students", "reports", "lessons"]);
+// Stores where any change is immediately critical (e.g. add/delete).
+// `reports` is absent on purpose — it syncs per-document to a subcollection
+// instead of through the whole-array debounced path (see reports/firestoreSync.js).
+const IMMEDIATE_STORES = new Set(["students", "lessons"]);
 
 // Syncs teacher stores to Firestore on change, loads on login
 function useFirebaseSync() {
   const isLoadingRef = useRef(false);
   const timersRef = useRef({});
+  // Bumped on every auth-state change so an in-flight loadIntoStores/getUserDoc
+  // from a superseded sign-in (e.g. the dev account switcher's fast
+  // signOut -> signInWithEmailAndPassword) can detect it's stale and bail
+  // out instead of applying account A's data after account B has signed in.
+  const sessionRef = useRef(0);
 
   useEffect(() => {
     if (!IS_FIREBASE_READY || !auth) return;
 
     let unsubStores = [];
+    let unsubReports = null;
+    let reportsPushedUp = false;
 
     const debouncedSave = (uid, storeName, data) => {
       if (isLoadingRef.current) return;
@@ -67,6 +87,34 @@ function useFirebaseSync() {
       unsubStores = [];
       Object.values(timersRef.current).forEach(clearTimeout);
       timersRef.current = {};
+      unsubReports?.();
+      unsubReports = null;
+      reportsPushedUp = false;
+      setReportsRemoteAdapter(null);
+    };
+
+    // Reports don't go through debouncedSave — each add/update/delete writes
+    // its own document, and a live subcollection query is the source of truth.
+    const setupReportsSync = (uid) => {
+      setReportsRemoteAdapter({
+        add: (report) => addReportRemote(uid, report),
+        update: (id, updates) => updateReportRemote(uid, id, updates),
+        remove: (id) => deleteReportRemote(uid, id),
+      });
+
+      unsubReports = subscribeToReports(uid, (remoteReports) => {
+        // First snapshot on a brand-new account: nothing remote yet, so push
+        // whatever is in local storage up instead of wiping it.
+        if (!reportsPushedUp) {
+          reportsPushedUp = true;
+          const local = useReportsStore.getState().reports;
+          if (remoteReports.length === 0 && local.length > 0) {
+            local.forEach((r) => addReportRemote(uid, r));
+            return;
+          }
+        }
+        useReportsStore.setState({ reports: remoteReports });
+      });
     };
 
     const setupStoreSubscriptions = (uid) => {
@@ -99,11 +147,6 @@ function useFirebaseSync() {
         )
       );
       unsubStores.push(
-        useReportsStore.subscribe((state) =>
-          debouncedSave(uid, "reports", state.reports)
-        )
-      );
-      unsubStores.push(
         useGroupsStore.subscribe((state) =>
           debouncedSave(uid, "groups", state.groups)
         )
@@ -113,12 +156,32 @@ function useFirebaseSync() {
           debouncedSave(uid, "parents", state.parents)
         )
       );
+      unsubStores.push(
+        useHomeworkStore.subscribe((state) =>
+          debouncedSave(uid, "homework", state.homework)
+        )
+      );
+      unsubStores.push(
+        useWritingStore.subscribe((state) =>
+          debouncedSave(uid, "writing", state.writings)
+        )
+      );
+      unsubStores.push(
+        useExamsStore.subscribe((state) =>
+          debouncedSave(uid, "exams", { exams: state.exams, assignments: state.assignments })
+        )
+      );
     };
 
-    const loadIntoStores = async (uid) => {
+    const loadIntoStores = async (uid, mySession) => {
       isLoadingRef.current = true;
       try {
         const remote = await loadAllStores(uid);
+
+        // A newer auth-state change (fast account switch) fired while this
+        // fetch was in flight — applying it now would clobber the newer
+        // session's already-loaded data with the previous account's.
+        if (sessionRef.current !== mySession) return;
 
         // Only overwrite a store when Firestore has data for it.
         // If remote is null (first login, never synced), keep local data so it
@@ -131,20 +194,47 @@ function useFirebaseSync() {
           evaluations: remote.progress.evaluations ?? [],
           goals:       remote.progress.goals ?? [],
         });
-        if (remote.reports   !== null) useReportsStore.setState({ reports:  remote.reports });
         if (remote.groups    !== null) useGroupsStore.setState({  groups:   remote.groups });
         if (remote.parents   !== null) useParentsStore.setState({ parents:  remote.parents });
+        if (remote.homework  !== null) useHomeworkStore.setState({ homework: remote.homework });
+        if (remote.writing   !== null) useWritingStore.setState({ writings: remote.writing });
+        if (remote.exams     !== null) useExamsStore.setState({
+          exams:       remote.exams.exams ?? [],
+          assignments: remote.exams.assignments ?? [],
+        });
       } finally {
         isLoadingRef.current = false;
       }
     };
 
     const unsubAuth = onAuthStateChanged(auth, async (user) => {
+      const mySession = ++sessionRef.current;
       teardownStores();
-      if (user) {
-        await loadIntoStores(user.uid);
-        setupStoreSubscriptions(user.uid);
+      if (!user) return;
+
+      // This whole sync loop is teacher-shaped data (teachers/{uid}/stores/*,
+      // teachers/{uid}/reports/*) — parents/students get their real data
+      // through parentRealtime.js/studentRealtime.js instead and never read
+      // these stores, so running it for them was pure waste: extra reads on
+      // every login and a debounced write under teachers/{theirUid}/... on
+      // every local state change, piling up junk documents at scale.
+      const userDoc = await getUserDoc(user.uid).catch(() => null);
+      if (sessionRef.current !== mySession) return; // superseded mid-lookup
+
+      // Boss/Admin dashboards are pure Cloud-Function reads (no local Zustand
+      // stores involved) — kick them off now, in the background, so results
+      // are already warm by the time the user actually taps into (admin-tabs)
+      // instead of only starting once that screen mounts.
+      if (userDoc?.role === "boss" || userDoc?.role === "admin") {
+        prefetchAdminDashboard();
+        return;
       }
+      if (userDoc?.role !== "teacher") return;
+
+      await loadIntoStores(user.uid, mySession);
+      if (sessionRef.current !== mySession) return; // superseded mid-load
+      setupStoreSubscriptions(user.uid);
+      setupReportsSync(user.uid);
     });
 
     return () => {
@@ -202,8 +292,15 @@ export default function RootLayout() {
           <Stack.Screen name="report/[id]" />
           <Stack.Screen name="parent/[id]" />
           <Stack.Screen name="parent-portal/index" />
+          <Stack.Screen name="parent-portal/reports" />
           <Stack.Screen name="parent-portal/report/[id]" />
           <Stack.Screen name="progress/[studentId]" />
+          <Stack.Screen name="homework/index" />
+          <Stack.Screen name="writing/index" />
+          <Stack.Screen name="weekly-report/[studentId]" />
+          <Stack.Screen name="exams/index" />
+          <Stack.Screen name="essay-check/index" />
+          <Stack.Screen name="boss-home-test/index" />
         </Stack>
       </GestureHandlerRootView>
     </QueryClientProvider>

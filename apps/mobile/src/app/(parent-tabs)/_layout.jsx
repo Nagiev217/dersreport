@@ -38,6 +38,8 @@ export default function ParentTabLayout() {
     >
       <Tabs.Screen name="index"   options={{ title: t("tabHome"),      tabBarIcon: ({ focused }) => <TabIcon Icon={Home}     focused={focused} /> }} />
       <Tabs.Screen name="child"   options={{ title: t("tabMyChild"),   tabBarIcon: ({ focused }) => <TabIcon Icon={Users}    focused={focused} /> }} />
+      <Tabs.Screen name="child-variant-modules" options={{ href: null }} />
+      <Tabs.Screen name="reports-variant-timeline" options={{ href: null }} />
       <Tabs.Screen name="lessons" options={{ title: t("tabLessons"),   tabBarIcon: ({ focused }) => <TabIcon Icon={Calendar} focused={focused} /> }} />
       <Tabs.Screen name="reports" options={{ title: t("reportsTitle"), tabBarIcon: ({ focused }) => <TabIcon Icon={FileText} focused={focused} /> }} />
       <Tabs.Screen name="profile" options={{ title: t("tabProfile"),   tabBarIcon: ({ focused }) => <TabIcon Icon={User}     focused={focused} /> }} />

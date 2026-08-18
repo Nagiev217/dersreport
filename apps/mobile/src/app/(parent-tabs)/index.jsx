@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,30 +11,44 @@ import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   BookOpen,
   Calendar,
   FileText,
   Bell,
-  Shield,
+  GraduationCap,
   LogOut,
   ChevronRight,
   Users,
   Trophy,
   MessageSquare,
   FilePlus,
-  LayoutGrid,
   User,
 } from "lucide-react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "../../utils/firebase/config";
 import { useParentData } from "../../utils/firebase/parentRealtime";
 import { clearCachedRole } from "../../utils/auth/roleCache";
+import { getScoreColor } from "@/data/mockData";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "../../utils/i18n";
+
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT  = "#111827";
+const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
 
 const pad = (n) => String(n).padStart(2, "0");
 function todayStr() {
   const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function toDateStr(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function formatDateShortLocal(s, monthsArr) {
@@ -43,17 +57,28 @@ function formatDateShortLocal(s, monthsArr) {
   const [, m, d] = s.split("-").map(Number);
   return s === today ? "" : `${d} ${monthsArr[m - 1]}`;
 }
-
 function getGreeting(t) {
   const h = new Date().getHours();
   if (h < 12) return t("goodMorning");
   if (h < 17) return t("goodAfternoon");
   return t("goodEvening");
 }
+// Monday-first week containing today
+function getCurrentWeek() {
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dow);
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(monday);
+    x.setDate(monday.getDate() + i);
+    return x;
+  });
+}
 
 // ─── Circular progress ────────────────────────────────────────────────────────
 
-function CircleProgress({ size = 56, progress = 87, color = "#6B5CF6", trackColor = "#E5E5EA", strokeWidth = 5 }) {
+function CircleProgress({ size = 56, progress = 87, color = BLUE, trackColor = "#E5E5EA", strokeWidth = 5 }) {
   const r = (size - strokeWidth * 2) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - Math.max(0, Math.min(100, progress)) / 100);
@@ -76,112 +101,12 @@ function CircleProgress({ size = 56, progress = 87, color = "#6B5CF6", trackColo
   );
 }
 
-// ─── Child card ───────────────────────────────────────────────────────────────
-
-function ChildCard({ student, reports, lessons, onPress, monthsShort, t, tSubject, tName }) {
-  const today = todayStr();
-  const upcoming = lessons
-    .filter((l) =>
-      (l.studentIds ?? []).includes(String(student.id)) &&
-      l.date >= today &&
-      l.status === "planned"
-    )
-    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))[0];
-
-  const attend = student.attendance ?? 87;
-  const attendColor = attend >= 90 ? "#22C55E" : attend >= 75 ? "#F59E0B" : "#EF4444";
-
-  const displayName = tName(student.name);
-  const initials = displayName
-    ? displayName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
-    : "?";
-
-  const dateLabel = upcoming
-    ? (upcoming.date === today ? t("today") : formatDateShortLocal(upcoming.date, monthsShort))
-    : null;
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.88}
-      onPress={onPress}
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderRadius: 20,
-        marginHorizontal: 20,
-        marginBottom: 16,
-        padding: 16,
-        shadowColor: "#000",
-        shadowOpacity: 0.07,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 4 },
-        elevation: 3,
-      }}
-    >
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 14 }}>
-        <View style={{
-          width: 48, height: 48, borderRadius: 24,
-          backgroundColor: student.avatarColor ?? "#6B5CF6",
-          alignItems: "center", justifyContent: "center", marginRight: 12,
-        }}>
-          <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{displayName}</Text>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
-            {tSubject(student.subject)} · {tSubject(student.type)}
-          </Text>
-        </View>
-        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
-          <ChevronRight size={14} color="#8E8E93" />
-        </View>
-      </View>
-
-      {/* Two sub-boxes */}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        {/* Next lesson */}
-        <View style={{ flex: 1, backgroundColor: "#F8F8FB", borderRadius: 14, padding: 12 }}>
-          <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#8E8E93", marginBottom: 8 }}>
-            {t("parentNextLesson")}
-          </Text>
-          {upcoming ? (
-            <>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                <Calendar size={12} color="#6B5CF6" />
-                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }}>
-                  {dateLabel ? `${dateLabel}, ` : ""}{upcoming.time}
-                </Text>
-              </View>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
-                {tSubject(upcoming.subject ?? student.subject)}
-              </Text>
-            </>
-          ) : (
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#C7C7CC" }}>—</Text>
-          )}
-        </View>
-
-        {/* Attendance */}
-        <View style={{ flex: 1, backgroundColor: "#F8F8FB", borderRadius: 14, padding: 12, alignItems: "center" }}>
-          <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#8E8E93", marginBottom: 8, alignSelf: "flex-start" }}>
-            {t("parentAttendanceLabel")}
-          </Text>
-          <CircleProgress size={56} progress={attend} color={attendColor} strokeWidth={5} />
-          <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#22C55E", marginTop: 6 }}>
-            {t("parentWeeklyGain", { n: 5 })}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
-
 // ─── Report row ───────────────────────────────────────────────────────────────
 
 function ReportRow({ report, onPress, monthsShort, t, tSubject }) {
-  const scoreColors = { 5: "#22C55E", 4: "#3B82F6", 3: "#F59E0B", 2: "#F97316", 1: "#EF4444" };
-  const scoreBgs   = { 5: "#F0FDF4", 4: "#EFF6FF", 3: "#FFFBEB", 2: "#FFF7ED", 1: "#FEF2F2" };
-  const color = scoreColors[report.activityScore] ?? "#F59E0B";
+  const scoreColors = { 5: "#22C55E", 4: "#2563EB", 3: "#D97706", 2: "#F97316", 1: "#EF4444" };
+  const scoreBgs   = { 5: "#ECFDF5", 4: BLUE_50, 3: "#FFFBEB", 2: "#FFF7ED", 1: "#FEF2F2" };
+  const color = scoreColors[report.activityScore] ?? "#D97706";
   const bg    = scoreBgs[report.activityScore]   ?? "#FFFBEB";
   const pct   = (report.activityScore ?? 3) * 20;
   const dateStr = formatDateShortLocal(report.date, monthsShort) || (report.date === todayStr() ? t("today") : report.date);
@@ -195,17 +120,17 @@ function ReportRow({ report, onPress, monthsShort, t, tSubject }) {
       onPress={onPress}
       style={{ flexDirection: "row", alignItems: "center", paddingVertical: 13, gap: 12 }}
     >
-      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}>
-        <FileText size={18} color="#6B5CF6" />
+      <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: INDIGO_50, alignItems: "center", justifyContent: "center" }}>
+        <FileText size={18} color={INDIGO} />
       </View>
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color }} />
-          <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }} numberOfLines={1}>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT }} numberOfLines={1}>
             {tSubject(report.subject)}
           </Text>
         </View>
-        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 2 }}>
+        <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, marginTop: 2 }}>
           {dateStr}{timeStr ? `, ${timeStr}` : ""}
         </Text>
       </View>
@@ -222,11 +147,24 @@ function ReportRow({ report, onPress, monthsShort, t, tSubject }) {
 export default function ParentDashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t, tSubject, tName, months } = useT();
+  const { t, tSubject, tName, months, days } = useT();
   const monthsShort = months(true);
+  const daysShort = days(true);
 
   const { reports: allReports, students: children, lessons: allLessons, loading } = useParentData();
   const displayName = auth?.currentUser?.displayName ?? t("roleParentTitle");
+
+  const [activeChildId, setActiveChildId] = useState(null);
+
+  // Auto-select first child (or keep current selection if it still exists)
+  useEffect(() => {
+    if (!children.length) return;
+    setActiveChildId((prev) =>
+      prev && children.some((c) => c.id === prev) ? prev : children[0].id
+    );
+  }, [children]);
+
+  const activeChild = children.find((c) => c.id === activeChildId) ?? children[0] ?? null;
 
   const handleSignOut = () => {
     Alert.alert(
@@ -249,6 +187,7 @@ export default function ParentDashboard() {
   };
 
   const today = todayStr();
+  const weekDates = getCurrentWeek();
 
   const todayLessonsCount = allLessons.filter(
     (l) => l.date === today && l.status === "planned" &&
@@ -262,198 +201,338 @@ export default function ParentDashboard() {
     : 0;
 
   const unreadCount = allReports.filter((r) => !r.isRead).length;
-  const recentReports = allReports.slice(0, 3);
+
+  // ── Data scoped to the selected child ──────────────────────────────────────
+  const childIdStr = activeChild ? String(activeChild.id) : null;
+
+  const childLessons = childIdStr
+    ? allLessons.filter((l) => (l.studentIds ?? []).includes(childIdStr))
+    : [];
+
+  const childUpcoming = childLessons
+    .filter((l) => l.date >= today && l.status === "planned")
+    .sort((a, b) => `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`))[0];
+
+  const childUpcomingDateLabel = childUpcoming
+    ? (childUpcoming.date === today ? t("today") : formatDateShortLocal(childUpcoming.date, monthsShort))
+    : null;
+
+  const childReports = childIdStr
+    ? allReports.filter((r) => String(r.studentId) === childIdStr).slice(0, 3)
+    : [];
+
+  const weekCells = weekDates.map((d) => {
+    const ds = toDateStr(d);
+    const dayLessons = childLessons.filter((l) => l.date === ds);
+    const status = dayLessons.some((l) => l.status === "completed")
+      ? "completed"
+      : dayLessons.some((l) => l.status === "planned")
+      ? "planned"
+      : dayLessons.some((l) => l.status === "cancelled")
+      ? "cancelled"
+      : null;
+    return { date: d, ds, status, isToday: ds === today };
+  });
 
   const quickActions = [
-    { key: "report",   icon: FilePlus,      color: "#3B82F6", bg: "#EFF6FF", label: t("quickNewReport"),   onPress: () => router.push("/(parent-tabs)/reports") },
-    { key: "contact",  icon: MessageSquare, color: "#22C55E", bg: "#F0FDF4", label: t("quickContact"),     onPress: () => {} },
-    { key: "schedule", icon: Calendar,      color: "#6B5CF6", bg: "#EEF0FF", label: t("quickSchedule"),    onPress: () => router.push("/(parent-tabs)/child") },
-    { key: "profile",  icon: User,          color: "#F59E0B", bg: "#FFFBEB", label: t("tabProfile"),       onPress: () => router.push("/(parent-tabs)/profile") },
+    { key: "report",   icon: FilePlus,      color: BLUE,      bg: BLUE_50,   label: t("quickNewReport"),   onPress: () => router.push("/(parent-tabs)/reports") },
+    { key: "contact",  icon: MessageSquare, color: "#22C55E", bg: "#ECFDF5", label: t("quickContact"),     onPress: () => {} },
+    { key: "schedule", icon: Calendar,      color: INDIGO,    bg: INDIGO_50, label: t("quickSchedule"),    onPress: () => router.push("/(parent-tabs)/child") },
+    { key: "profile",  icon: User,          color: "#D97706", bg: "#FFFBEB", label: t("tabProfile"),       onPress: () => router.push("/(parent-tabs)/profile") },
   ];
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color="#6B5CF6" size="large" />
-        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 12 }}>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={BLUE} size="large" />
+        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, marginTop: 12 }}>
           {t("loadingData")}
         </Text>
       </View>
     );
   }
 
+  const activeChildName = activeChild ? tName(activeChild.name) : "";
+  const activeChildInitials = activeChildName
+    ? activeChildName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase()
+    : "?";
+  const attend = activeChild?.attendance ?? 0;
+  const attendColor = attend >= 90 ? "#22C55E" : attend >= 75 ? "#D97706" : "#EF4444";
+  const scoreColor = activeChild ? getScoreColor(activeChild.score) : SUB;
+
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#F2F2F7" }}
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
       contentContainerStyle={{ paddingBottom: 32 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Top bar ── */}
-      <View style={{
-        backgroundColor: "#FFFFFF",
-        paddingTop: insets.top + 4,
-        paddingHorizontal: 20,
-        paddingBottom: 4,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
-        <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
-          <Shield size={18} color="#6B5CF6" />
-        </View>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            style={{ position: "relative", width: 40, height: 40, alignItems: "center", justifyContent: "center" }}
-          >
-            <Bell size={22} color="#1C1C1E" />
-            {unreadCount > 0 && (
-              <View style={{ position: "absolute", top: 8, right: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: "#6B5CF6", borderWidth: 1.5, borderColor: "#FFFFFF" }} />
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={handleSignOut}
-            style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}
-          >
-            <LogOut size={18} color="#8E8E93" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+      <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
 
-      {/* ── Greeting ── */}
-      <View style={{ backgroundColor: "#FFFFFF", paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 }}>
-        <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
-          {getGreeting(t)},
-        </Text>
-        <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: "#1C1C1E", letterSpacing: -0.5, marginTop: 2 }}>
-          {tName(displayName)}!
-        </Text>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 4 }}>
-          {t("parentSubtitle")}
-        </Text>
-      </View>
-
-      <View style={{ height: 12 }} />
-
-      {/* ── Stats card ── */}
+      {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
       <LinearGradient
-        colors={["#7C6AF5", "#5A4CD6"]}
+        colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+        locations={[0, 0.6, 1]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ marginHorizontal: 20, borderRadius: 22, padding: 20, marginBottom: 16 }}
+        end={{ x: 0, y: 1 }}
+        style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
       >
-        <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)", marginBottom: 16 }}>
-          {t("parentMyChildren")}
-        </Text>
-        <View style={{ flexDirection: "row" }}>
-          {[
-            { Icon: BookOpen, value: todayLessonsCount, label: t("statsTodayLessons") },
-            { Icon: Users,    value: totalLessons,      label: t("statsTotalLessons") },
-            { Icon: Trophy,   value: `${avgAttend}%`,   label: t("statsAvgAttend") },
-          ].map(({ Icon, value, label }, i) => (
-            <View key={i} style={{ flex: 1, alignItems: "center" }}>
-              <Icon size={20} color="rgba(255,255,255,0.75)" />
-              <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFFFFF", marginTop: 6 }}>
-                {value}
-              </Text>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", textAlign: "center", marginTop: 3 }}>
-                {label}
-              </Text>
+        {/* logo row */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+              <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
             </View>
+            <View>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>Jeff</Text>
+              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>Colleges</Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <PressableScale scaleTo={0.9} accessibilityRole="button" accessibilityLabel={t("parentRecentReports")} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}>
+              <Bell size={19} color={TEXT} />
+              {unreadCount > 0 && (
+                <View style={{ position: "absolute", top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE, borderWidth: 1.5, borderColor: "#FFFFFF" }} />
+              )}
+            </PressableScale>
+            <PressableScale onPress={handleSignOut} scaleTo={0.9} accessibilityRole="button" accessibilityLabel={t("profileSignOut")} style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}>
+              <LogOut size={18} color={SUB} />
+            </PressableScale>
+          </View>
+        </View>
+
+        <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))}>
+          <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB }}>
+            {getGreeting(t)},
+          </Text>
+          <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>
+            {tName(displayName)}!
+          </Text>
+        </Animated.View>
+
+        {/* ── Aggregate stat grid (all children) ── */}
+        <View style={{ flexDirection: "row", gap: 10, marginTop: 18 }}>
+          {[
+            { Icon: BookOpen, value: todayLessonsCount, label: t("statsTodayLessons"), color: BLUE,      bg: BLUE_50 },
+            { Icon: Users,    value: totalLessons,      label: t("statsTotalLessons"), color: INDIGO,    bg: INDIGO_50 },
+            { Icon: Trophy,   value: `${avgAttend}%`,   label: t("statsAvgAttend"),    color: "#D97706", bg: "#FFFBEB" },
+          ].map(({ Icon, value, label, color, bg }, i) => (
+            <Animated.View
+              key={label}
+              entering={FadeInDown.delay(60 + i * 60).duration(360).easing(Easing.out(Easing.cubic))}
+              style={{ flex: 1 }}
+            >
+              <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 13, borderWidth: 1, borderColor: BORDER, shadowColor: INDIGO, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 1 }}>
+                <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: bg, alignItems: "center", justifyContent: "center", marginBottom: 9 }}>
+                  <Icon size={15} color={color} />
+                </View>
+                <Text numberOfLines={1} style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3 }}>{value}</Text>
+                <Text numberOfLines={1} style={{ fontSize: 10.5, fontFamily: "Inter_500Medium", color: SUB, marginTop: 2 }}>{label}</Text>
+              </View>
+            </Animated.View>
           ))}
         </View>
+
+        {/* ── Child switcher — only when there's more than one ── */}
+        {children.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 16 }}>
+            {children.map((c) => {
+              const active = c.id === activeChildId;
+              const cName = tName(c.name);
+              const cInitials = cName.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+              return (
+                <PressableScale
+                  key={c.id}
+                  onPress={() => setActiveChildId(c.id)}
+                  scaleTo={0.95}
+                  accessibilityRole="button"
+                  accessibilityLabel={cName}
+                  accessibilityState={{ selected: active }}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 8,
+                    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
+                    backgroundColor: active ? BLUE : "#FFFFFF",
+                    borderWidth: 1, borderColor: active ? BLUE : BORDER,
+                  }}
+                >
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: active ? "rgba(255,255,255,0.25)" : (c.avatarColor ?? BLUE), alignItems: "center", justifyContent: "center" }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF" }}>{cInitials}</Text>
+                  </View>
+                  <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: active ? "Inter_600SemiBold" : "Inter_500Medium", color: active ? "#FFFFFF" : TEXT, maxWidth: 100 }}>
+                    {cName}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
+        )}
       </LinearGradient>
 
-      {/* ── Empty state ── */}
-      {children.length === 0 && (
-        <View style={{ margin: 20, backgroundColor: "#FFFFFF", borderRadius: 20, padding: 32, alignItems: "center" }}>
-          <Shield size={40} color="#C7C7CC" />
-          <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginTop: 16, marginBottom: 8 }}>
-            {t("parentNoChildren")}
-          </Text>
-          <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center", lineHeight: 20 }}>
-            {t("parentNoChildrenHint")}
-          </Text>
-          <TouchableOpacity
-            onPress={() => router.push("/(parent-tabs)/profile")}
-            style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: "#6B5CF6", borderRadius: 14 }}
-          >
-            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("parentMyID")}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* ── Children ── */}
-      {children.map((student) => (
-        <ChildCard
-          key={student.id}
-          student={student}
-          reports={allReports}
-          lessons={allLessons}
-          monthsShort={monthsShort}
-          t={t}
-          tSubject={tSubject}
-          tName={tName}
-          onPress={() => router.push(`/(parent-tabs)/reports?highlight=${student.id}`)}
-        />
-      ))}
-
-      {/* ── Recent reports ── */}
-      {allReports.length > 0 && (
-        <View style={{ marginHorizontal: 20, marginBottom: 16 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>
-              {t("parentRecentReports")}
+      {/* ── SECTION 2 — Content (white) ── */}
+      <View style={{ paddingTop: 20 }}>
+        {/* ── Empty state ── */}
+        {children.length === 0 && (
+          <View style={{ marginHorizontal: 20, marginBottom: 16, backgroundColor: "#FFFFFF", borderRadius: 20, padding: 32, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
+            <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+              <GraduationCap size={32} color={BLUE} />
+            </View>
+            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 8 }}>
+              {t("parentNoChildren")}
             </Text>
-            {allReports.length > 3 && (
-              <TouchableOpacity activeOpacity={0.7} onPress={() => router.push("/(parent-tabs)/reports")}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "#8E8E93" }}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 20 }}>
+              {t("parentNoChildrenHint")}
+            </Text>
+            <PressableScale onPress={() => router.push("/(parent-tabs)/profile")} scaleTo={0.96} style={{ marginTop: 16, borderRadius: 14, overflow: "hidden" }}>
+              <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 24, paddingVertical: 12 }}>
+                <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("parentMyID")}</Text>
+              </LinearGradient>
+            </PressableScale>
+          </View>
+        )}
+
+        {/* ── Focus card — selected child ── */}
+        {activeChild && (
+          <Animated.View entering={FadeInDown.duration(320)} style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+            <PressableScale
+              onPress={() => router.push("/(parent-tabs)/child")}
+              scaleTo={0.99}
+              style={{ backgroundColor: "#FFFFFF", borderRadius: 20, padding: 18, borderWidth: 1, borderColor: BORDER }}
+            >
+              {/* Header row */}
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+                <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: activeChild.avatarColor ?? BLUE, alignItems: "center", justifyContent: "center", marginRight: 12 }}>
+                  <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFF" }}>{activeChildInitials}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT }}>{activeChildName}</Text>
+                  <Text style={{ fontSize: 12.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 1 }}>
+                    {tSubject(activeChild.subject)} · {tSubject(activeChild.type)}
+                  </Text>
+                </View>
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center" }}>
+                  <ChevronRight size={14} color={SUB} />
+                </View>
+              </View>
+
+              {/* Stat trio */}
+              <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
+                <View style={{ flex: 1, backgroundColor: INDIGO_50, borderRadius: 14, padding: 12, alignItems: "center" }}>
+                  <Text style={{ fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: SUB, marginBottom: 8 }}>
+                    {t("parentAttendanceLabel")}
+                  </Text>
+                  <CircleProgress size={48} progress={attend} color={attendColor} strokeWidth={4.5} />
+                </View>
+                <View style={{ flex: 1, backgroundColor: BLUE_50, borderRadius: 14, padding: 12, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: SUB, marginBottom: 6 }}>
+                    {t("studentStatScore")}
+                  </Text>
+                  <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: scoreColor }}>
+                    {activeChild.score ?? 0}<Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: SUB }}>/{activeChild.maxScore ?? 10}</Text>
+                  </Text>
+                </View>
+              </View>
+
+              {/* Next lesson row */}
+              <View style={{ backgroundColor: "#F8FAFC", borderRadius: 14, padding: 12 }}>
+                <Text style={{ fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: SUB, marginBottom: 6 }}>
+                  {t("parentNextLesson")}
+                </Text>
+                {childUpcoming ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Calendar size={13} color={BLUE} />
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT }}>
+                      {childUpcomingDateLabel ? `${childUpcomingDateLabel}, ` : ""}{childUpcoming.time}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
+                      · {tSubject(childUpcoming.subject ?? activeChild.subject)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#C7C7CC" }}>—</Text>
+                )}
+              </View>
+            </PressableScale>
+
+            {/* Week strip */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingVertical: 12, paddingHorizontal: 6, marginTop: 10 }}>
+              {weekCells.map((cell, i) => {
+                const dotColor = cell.status === "completed" ? "#22C55E" : cell.status === "planned" ? BLUE : cell.status === "cancelled" ? "#EF4444" : "#E5E9F2";
+                return (
+                  <View key={i} style={{ alignItems: "center", width: 30 }}>
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: SUB, marginBottom: 6 }}>
+                      {daysShort[(cell.date.getDay() + 6) % 7]}
+                    </Text>
+                    <View style={{
+                      width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center",
+                      backgroundColor: cell.isToday ? BLUE_50 : "transparent",
+                      borderWidth: cell.isToday ? 1 : 0, borderColor: BLUE,
+                    }}>
+                      <Text style={{ fontSize: 11, fontFamily: cell.isToday ? "Inter_700Bold" : "Inter_400Regular", color: cell.isToday ? BLUE : TEXT }}>
+                        {cell.date.getDate()}
+                      </Text>
+                    </View>
+                    <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: dotColor, marginTop: 4 }} />
+                  </View>
+                );
+              })}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* ── Recent activity for the selected child ── */}
+        {activeChild && childReports.length > 0 && (
+          <View style={{ marginHorizontal: 20, marginBottom: 16 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>
+                {t("parentRecentReports")}
+              </Text>
+              <TouchableOpacity activeOpacity={0.7} onPress={() => router.push(`/(parent-tabs)/reports?highlight=${activeChild.id}`)}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: BLUE }}>
                   {t("seeAll")}
                 </Text>
               </TouchableOpacity>
-            )}
+            </View>
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, paddingHorizontal: 16, borderWidth: 1, borderColor: BORDER }}>
+              {childReports.map((report, idx) => (
+                <View key={report.id}>
+                  <ReportRow
+                    report={report}
+                    monthsShort={monthsShort}
+                    t={t}
+                    tSubject={tSubject}
+                    onPress={() => router.push(`/(parent-tabs)/reports?highlight=${activeChild.id}`)}
+                  />
+                  {idx < childReports.length - 1 && (
+                    <View style={{ height: 1, backgroundColor: "#F1F5F9" }} />
+                  )}
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 }}>
-            {recentReports.map((report, idx) => (
-              <View key={report.id}>
-                <ReportRow
-                  report={report}
-                  monthsShort={monthsShort}
-                  t={t}
-                  tSubject={tSubject}
-                  onPress={() => router.push("/(parent-tabs)/reports")}
-                />
-                {idx < recentReports.length - 1 && (
-                  <View style={{ height: 0.5, backgroundColor: "#F2F2F7" }} />
-                )}
-              </View>
+        )}
+
+        {/* ── Quick actions ── */}
+        <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
+          <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 12 }}>
+            {t("quickActionsTitle")}
+          </Text>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            {quickActions.map(({ key, icon: Icon, color, bg, label, onPress }) => (
+              <PressableScale
+                key={key}
+                onPress={onPress}
+                scaleTo={0.95}
+                style={{ flex: 1, alignItems: "center", gap: 8 }}
+              >
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={24} color={color} />
+                </View>
+                <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: TEXT, textAlign: "center", lineHeight: 15 }}>
+                  {label}
+                </Text>
+              </PressableScale>
             ))}
           </View>
-        </View>
-      )}
-
-      {/* ── Quick actions ── */}
-      <View style={{ marginHorizontal: 20, marginBottom: 8 }}>
-        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 12 }}>
-          {t("quickActionsTitle")}
-        </Text>
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          {quickActions.map(({ key, icon: Icon, color, bg, label, onPress }) => (
-            <TouchableOpacity
-              key={key}
-              activeOpacity={0.85}
-              onPress={onPress}
-              style={{ flex: 1, alignItems: "center", gap: 8 }}
-            >
-              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
-                <Icon size={24} color={color} />
-              </View>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#1C1C1E", textAlign: "center", lineHeight: 15 }}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          ))}
         </View>
       </View>
     </ScrollView>

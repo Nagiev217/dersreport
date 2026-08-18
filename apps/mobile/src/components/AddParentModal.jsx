@@ -59,7 +59,7 @@ export default function AddParentModal({ visible, onClose, onConfirm, excludePar
     } else {
       if (!name.trim()) return;
       const newParent = {
-        id: `parent-${Date.now()}`,
+        id: `parent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim(),

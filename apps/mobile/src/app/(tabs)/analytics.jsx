@@ -3,12 +3,12 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   Animated,
   useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import RNAnimated, { FadeInDown, Easing } from "react-native-reanimated";
 import Svg, {
   Path,
   Defs,
@@ -24,28 +24,37 @@ import {
   Users,
   BookOpen,
   FileText,
-  Clock,
   Award,
   CheckCircle,
   XCircle,
   Calendar,
-  TrendingUp,
+  GraduationCap,
 } from "lucide-react-native";
 import { useStudentsStore } from "@/utils/students/store";
 import { useLessonsStore } from "@/utils/lessons/store";
 import { useReportsStore } from "@/utils/reports/store";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 import {
   PERIODS,
   getPeriodBounds,
   getLessonMetrics,
-  computeAllTimeIncome,
-  getMonthlyIncomeData,
   getMonthlyLessonData,
   getStudentRanking,
   getAttendanceDistribution,
   formatAZN,
 } from "@/utils/analyticsUtils";
+
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT  = "#111827";
+const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
+const GREEN = "#22C55E";
+const AMBER = "#D97706";
 
 // ─── Chart helpers ─────────────────────────────────────────────────────────────
 
@@ -107,7 +116,7 @@ const LineChart = ({ data, color, gradId, width, height = 180 }) => {
               y1={y.toFixed(1)}
               x2={(PL + cW).toFixed(1)}
               y2={y.toFixed(1)}
-              stroke="#F0F0F5"
+              stroke="#F1F5F9"
               strokeWidth="1"
               strokeDasharray={pct === 0 ? undefined : "3 4"}
             />
@@ -116,7 +125,7 @@ const LineChart = ({ data, color, gradId, width, height = 180 }) => {
               y={(y + 4).toFixed(1)}
               textAnchor="end"
               fontSize="10"
-              fill="#AEAEB2"
+              fill={SUB}
             >
               {formatAZN(minV + pct * (maxV - minV))}
             </SvgText>
@@ -161,7 +170,7 @@ const LineChart = ({ data, color, gradId, width, height = 180 }) => {
           y={height - 7}
           textAnchor="middle"
           fontSize="10"
-          fill="#AEAEB2"
+          fill={SUB}
         >
           {d.label}
         </SvgText>
@@ -221,11 +230,8 @@ const Card = ({ children, style }) => (
         backgroundColor: "#FFFFFF",
         borderRadius: 18,
         padding: 16,
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
+        borderWidth: 1,
+        borderColor: BORDER,
       },
       style,
     ]}
@@ -238,9 +244,9 @@ const SectionHeader = ({ title, subtitle }) => (
   <View style={{ marginBottom: 14 }}>
     <Text
       style={{
-        fontSize: 20,
+        fontSize: 18,
         fontFamily: "Inter_700Bold",
-        color: "#1C1C1E",
+        color: TEXT,
         letterSpacing: -0.3,
       }}
     >
@@ -251,7 +257,7 @@ const SectionHeader = ({ title, subtitle }) => (
         style={{
           fontSize: 13,
           fontFamily: "Inter_400Regular",
-          color: "#8E8E93",
+          color: SUB,
           marginTop: 2,
         }}
       >
@@ -267,7 +273,7 @@ const StatPair = ({ left, right }) => (
     <View
       style={{
         width: 1,
-        backgroundColor: "#F2F2F7",
+        backgroundColor: "#F1F5F9",
         marginVertical: 4,
       }}
     />
@@ -294,7 +300,7 @@ const StatItem = ({ Icon, iconColor, iconBg, label, value, sub }) => (
         style={{
           fontSize: 22,
           fontFamily: "Inter_700Bold",
-          color: "#1C1C1E",
+          color: TEXT,
           letterSpacing: -0.4,
         }}
       >
@@ -305,7 +311,7 @@ const StatItem = ({ Icon, iconColor, iconBg, label, value, sub }) => (
           style={{
             fontSize: 11,
             fontFamily: "Inter_500Medium",
-            color: "#AEAEB2",
+            color: SUB,
             marginTop: 1,
           }}
         >
@@ -316,7 +322,7 @@ const StatItem = ({ Icon, iconColor, iconBg, label, value, sub }) => (
         style={{
           fontSize: 12,
           fontFamily: "Inter_400Regular",
-          color: "#8E8E93",
+          color: SUB,
           marginTop: 2,
         }}
       >
@@ -330,7 +336,7 @@ const Divider = () => (
   <View
     style={{
       height: 1,
-      backgroundColor: "#F2F2F7",
+      backgroundColor: "#F1F5F9",
       marginHorizontal: -16,
       marginVertical: 16,
     }}
@@ -344,10 +350,8 @@ const SmallCard = ({ label, value, unit, accent }) => (
       backgroundColor: "#FFFFFF",
       borderRadius: 14,
       padding: 14,
-      shadowColor: "#000",
-      shadowOpacity: 0.04,
-      shadowRadius: 6,
-      elevation: 1,
+      borderWidth: 1,
+      borderColor: BORDER,
     }}
   >
     <View
@@ -363,7 +367,7 @@ const SmallCard = ({ label, value, unit, accent }) => (
       style={{
         fontSize: 20,
         fontFamily: "Inter_700Bold",
-        color: "#1C1C1E",
+        color: TEXT,
         letterSpacing: -0.3,
       }}
     >
@@ -373,7 +377,7 @@ const SmallCard = ({ label, value, unit, accent }) => (
           style={{
             fontSize: 11,
             fontFamily: "Inter_400Regular",
-            color: "#8E8E93",
+            color: SUB,
           }}
         >
           {" "}
@@ -385,7 +389,7 @@ const SmallCard = ({ label, value, unit, accent }) => (
       style={{
         fontSize: 11,
         fontFamily: "Inter_400Regular",
-        color: "#8E8E93",
+        color: SUB,
         marginTop: 4,
       }}
     >
@@ -415,11 +419,6 @@ export default function AnalyticsScreen() {
   const { lessons } = useLessonsStore();
   const { reports } = useReportsStore();
 
-  const studentsMap = useMemo(
-    () => Object.fromEntries(students.map((s) => [s.id, s])),
-    [students]
-  );
-
   const bounds = useMemo(() => getPeriodBounds(period), [period]);
 
   const lessonMetrics = useMemo(
@@ -427,29 +426,11 @@ export default function AnalyticsScreen() {
     [lessons, bounds]
   );
 
-  const allTimeIncome = useMemo(
-    () => computeAllTimeIncome(students),
-    [students]
-  );
-
   // Monthly chart data (always 6 months regardless of period filter)
-  const incomeChartData = useMemo(
-    () => getMonthlyIncomeData(students, lessons, 6),
-    [students, lessons]
-  );
-
   const lessonChartData = useMemo(
     () => getMonthlyLessonData(students, lessons, 6),
     [students, lessons]
   );
-
-  const thisMonthIncome =
-    incomeChartData[incomeChartData.length - 1]?.value ?? 0;
-  const lastMonthIncome =
-    incomeChartData[incomeChartData.length - 2]?.value ?? 0;
-  const avgPerStudent = students.length
-    ? Math.round(allTimeIncome / students.length)
-    : 0;
 
   // Student rankings
   const topByLessons = useMemo(
@@ -503,95 +484,79 @@ export default function AnalyticsScreen() {
   // chart width = screen - 20px outer pad x2 - 16px card pad x2
   const CHART_W = screenW - 72;
 
-  const RANK_COLORS = ["#F59E0B", "#8E8E93", "#CD7F32", "#6B5CF6", "#6B5CF6"];
+  const RANK_COLORS = ["#F59E0B", "#94A3B8", "#B45309", INDIGO, INDIGO];
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: "#F2F2F7" }}
+      style={{ flex: 1, backgroundColor: "#FFFFFF" }}
       contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Header ── */}
+      {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+      <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+      {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
       <LinearGradient
-        colors={["#7B6CF7", "#6B5CF6", "#5A4FDE"]}
+        colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+        locations={[0, 0.6, 1]}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{
-          paddingTop: insets.top + 18,
-          paddingHorizontal: 20,
-          paddingBottom: 28,
-        }}
+        end={{ x: 0, y: 1 }}
+        style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            marginBottom: 4,
-          }}
-        >
-          <BarChart2 size={24} color="rgba(255,255,255,0.75)" />
-          <Text
-            style={{
-              fontSize: 30,
-              fontFamily: "Inter_700Bold",
-              color: "#FFFFFF",
-              letterSpacing: -0.6,
-            }}
-          >
-            {t("analyticsTitle")}
-          </Text>
+        {/* logo row */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+            <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
+          </View>
+          <View>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>Jeff</Text>
+            <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>Colleges</Text>
+          </View>
         </View>
-        <Text
-          style={{
-            fontSize: 13,
-            fontFamily: "Inter_400Regular",
-            color: "rgba(255,255,255,0.6)",
-            marginBottom: 22,
-          }}
-        >
-          {totalStudents} {tp(totalStudents, "student")} · {totalCompleted} {tp(totalCompleted, "lesson")} {t("analyticsCompleted").toLowerCase()}
-        </Text>
+
+        <RNAnimated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <BarChart2 size={22} color={BLUE} />
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 }}>
+              {t("analyticsTitle")}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 18 }}>
+            {totalStudents} {tp(totalStudents, "student")} · {totalCompleted} {tp(totalCompleted, "lesson")} {t("analyticsCompleted").toLowerCase()}
+          </Text>
+        </RNAnimated.View>
 
         {/* Period chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginHorizontal: -4 }}
-        >
-          <View
-            style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}
-          >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -4 }}>
+          <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 4 }}>
             {PERIODS.map((p) => {
               const active = p === period;
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={p}
-                  activeOpacity={0.8}
                   onPress={() => switchPeriod(p)}
+                  scaleTo={0.95}
+                  accessibilityRole="button"
+                  accessibilityLabel={PERIOD_LABELS[p] ?? p}
+                  accessibilityState={{ selected: active }}
                   style={{
                     paddingHorizontal: 16,
                     paddingVertical: 8,
                     borderRadius: 20,
-                    backgroundColor: active
-                      ? "#FFFFFF"
-                      : "rgba(255,255,255,0.15)",
-                    borderWidth: active ? 0 : 1,
-                    borderColor: "rgba(255,255,255,0.28)",
+                    backgroundColor: active ? BLUE : "#FFFFFF",
+                    borderWidth: 1,
+                    borderColor: active ? BLUE : BORDER,
                   }}
                 >
                   <Text
                     style={{
                       fontSize: 13,
-                      fontFamily: active
-                        ? "Inter_600SemiBold"
-                        : "Inter_400Regular",
-                      color: active ? "#6B5CF6" : "#FFFFFF",
+                      fontFamily: active ? "Inter_600SemiBold" : "Inter_400Regular",
+                      color: active ? "#FFFFFF" : TEXT,
                     }}
                   >
                     {PERIOD_LABELS[p] ?? p}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>
@@ -600,16 +565,14 @@ export default function AnalyticsScreen() {
 
       <Animated.View style={{ opacity: fadeAnim }}>
         {/* ── Summary Grid ── */}
-        <View
-          style={{ paddingHorizontal: 20, paddingTop: 24, marginBottom: 24 }}
-        >
+        <View style={{ paddingHorizontal: 20, paddingTop: 22, marginBottom: 22 }}>
           <Card style={{ padding: 20, gap: 0 }}>
             <StatPair
               left={
                 <StatItem
                   Icon={Users}
-                  iconColor="#6B5CF6"
-                  iconBg="#EEF0FF"
+                  iconColor={BLUE}
+                  iconBg={BLUE_50}
                   label={t("analyticsTotalStudents")}
                   value={totalStudents}
                   sub={`${activeStudents} ${t("analyticsActive")}`}
@@ -618,8 +581,8 @@ export default function AnalyticsScreen() {
               right={
                 <StatItem
                   Icon={Award}
-                  iconColor="#F59E0B"
-                  iconBg="#FEF9EE"
+                  iconColor={AMBER}
+                  iconBg="#FFFBEB"
                   label={t("analyticsAvgAttend")}
                   value={`${avgAttendance}%`}
                 />
@@ -630,7 +593,7 @@ export default function AnalyticsScreen() {
               left={
                 <StatItem
                   Icon={CheckCircle}
-                  iconColor="#22C55E"
+                  iconColor={GREEN}
                   iconBg="#ECFDF5"
                   label={`${t("analyticsLessons")} (${(PERIOD_LABELS[period] ?? period).toLowerCase()})`}
                   value={lessonMetrics.completed}
@@ -653,8 +616,8 @@ export default function AnalyticsScreen() {
               left={
                 <StatItem
                   Icon={FileText}
-                  iconColor="#3B82F6"
-                  iconBg="#EFF6FF"
+                  iconColor={INDIGO}
+                  iconBg={INDIGO_50}
                   label={t("analyticsReports")}
                   value={reports.length}
                 />
@@ -672,136 +635,34 @@ export default function AnalyticsScreen() {
           </Card>
         </View>
 
-        {/* ── Financial Section ── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
-          <SectionHeader title={t("analyticsFinance")} subtitle={t("analyticsFinanceHint")} />
-
-          <View
-            style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}
-          >
-            <SmallCard label={t("analyticsThisMonth")} value={formatAZN(thisMonthIncome)} unit="AZN" accent="#6B5CF6" />
-            <SmallCard label={t("analyticsLastMonth")} value={formatAZN(lastMonthIncome)} unit="AZN" accent="#3B82F6" />
-            <SmallCard label={t("analyticsAvgStudent")} value={formatAZN(avgPerStudent)} unit="AZN" accent="#22C55E" />
-          </View>
-
-          {/* All-time income banner */}
-          <View
-            style={{
-              backgroundColor: "#EEF0FF",
-              borderRadius: 14,
-              padding: 16,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 14,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <TrendingUp size={20} color="#6B5CF6" />
-              <View>
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "Inter_500Medium",
-                    color: "#6B5CF6",
-                  }}
-                >
-                  {t("analyticsAllTime")}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "Inter_400Regular",
-                    color: "#8B7CF6",
-                  }}
-                >
-                  {t("analyticsEstimate")}
-                </Text>
-              </View>
-            </View>
-            <Text
-              style={{
-                fontSize: 22,
-                fontFamily: "Inter_700Bold",
-                color: "#6B5CF6",
-                letterSpacing: -0.4,
-              }}
-            >
-              {formatAZN(allTimeIncome)}{" "}
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontFamily: "Inter_400Regular",
-                  color: "#8B7CF6",
-                }}
-              >
-                AZN
-              </Text>
-            </Text>
-          </View>
-
-          {/* Income line chart */}
-          <Card>
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: "Inter_600SemiBold",
-                color: "#1C1C1E",
-                marginBottom: 4,
-              }}
-            >
-              {t("analyticsIncomeByMonth")}
-            </Text>
-            <Text
-              style={{
-                fontSize: 11,
-                fontFamily: "Inter_400Regular",
-                color: "#8E8E93",
-                marginBottom: 16,
-              }}
-            >
-              {t("analyticsLast6")}
-            </Text>
-            <LineChart
-              data={incomeChartData}
-              color="#6B5CF6"
-              gradId="incomeGrad"
-              width={CHART_W}
-              height={180}
-            />
-          </Card>
-        </View>
-
         {/* ── Lessons Section ── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 22 }}>
           <SectionHeader
             title={t("analyticsLessons")}
             subtitle={`${t("analyticsPeriod")}${(PERIOD_LABELS[period] ?? period).toLowerCase()}`}
           />
 
-          <View
-            style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}
-          >
+          <View style={{ flexDirection: "row", gap: 10, marginBottom: 14 }}>
             {[
               {
                 label: t("analyticsCompleted"),
                 value: lessonMetrics.completed,
-                color: "#22C55E",
+                color: GREEN,
                 bg: "#ECFDF5",
               },
               {
                 label: t("statusPlanned"),
                 value: lessonMetrics.planned,
-                color: "#6B5CF6",
-                bg: "#EEF0FF",
+                color: INDIGO,
+                bg: INDIGO_50,
               },
               {
                 label: t("analyticsAvgDur"),
                 value: lessonMetrics.avgDuration
                   ? `${lessonMetrics.avgDuration}${t("min_abbr")}`
                   : "—",
-                color: "#F59E0B",
-                bg: "#FEF9EE",
+                color: AMBER,
+                bg: "#FFFBEB",
               },
             ].map((item) => (
               <View
@@ -813,10 +674,8 @@ export default function AnalyticsScreen() {
                   padding: 12,
                   alignItems: "center",
                   gap: 6,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.04,
-                  shadowRadius: 6,
-                  elevation: 1,
+                  borderWidth: 1,
+                  borderColor: BORDER,
                 }}
               >
                 <View
@@ -829,24 +688,11 @@ export default function AnalyticsScreen() {
                     justifyContent: "center",
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 15,
-                      fontFamily: "Inter_700Bold",
-                      color: item.color,
-                    }}
-                  >
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: item.color }}>
                     {item.value}
                   </Text>
                 </View>
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "Inter_400Regular",
-                    color: "#8E8E93",
-                    textAlign: "center",
-                  }}
-                >
+                <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center" }}>
                   {item.label}
                 </Text>
               </View>
@@ -854,29 +700,15 @@ export default function AnalyticsScreen() {
           </View>
 
           <Card>
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: "Inter_600SemiBold",
-                color: "#1C1C1E",
-                marginBottom: 4,
-              }}
-            >
+            <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 4 }}>
               {t("analyticsByMonth")}
             </Text>
-            <Text
-              style={{
-                fontSize: 11,
-                fontFamily: "Inter_400Regular",
-                color: "#8E8E93",
-                marginBottom: 16,
-              }}
-            >
+            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 16 }}>
               {t("analyticsLast6").split(" · ")[0]}
             </Text>
             <LineChart
               data={lessonChartData}
-              color="#22C55E"
+              color={GREEN}
               gradId="lessonGrad"
               width={CHART_W}
               height={160}
@@ -885,14 +717,11 @@ export default function AnalyticsScreen() {
         </View>
 
         {/* ── Students Section ── */}
-        <View style={{ paddingHorizontal: 20, marginBottom: 24 }}>
+        <View style={{ paddingHorizontal: 20, marginBottom: 22 }}>
           <SectionHeader title={t("analyticsStudents")} subtitle={t("analyticsTopStudents")} />
           <Card>
             {topByLessons.map((student, i) => {
-              const pct =
-                maxLessons > 0
-                  ? (student.lessonsCompleted ?? 0) / maxLessons
-                  : 0;
+              const pct = maxLessons > 0 ? (student.lessonsCompleted ?? 0) / maxLessons : 0;
               return (
                 <View
                   key={student.id}
@@ -904,15 +733,7 @@ export default function AnalyticsScreen() {
                   }}
                 >
                   {/* Rank */}
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontFamily: "Inter_700Bold",
-                      color: RANK_COLORS[i] ?? "#8E8E93",
-                      width: 18,
-                      textAlign: "center",
-                    }}
-                  >
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: RANK_COLORS[i] ?? SUB, width: 18, textAlign: "center" }}>
                     {i + 1}
                   </Text>
 
@@ -922,80 +743,30 @@ export default function AnalyticsScreen() {
                       width: 36,
                       height: 36,
                       borderRadius: 18,
-                      backgroundColor: student.avatarColor ?? "#EEF0FF",
+                      backgroundColor: student.avatarColor ?? BLUE,
                       alignItems: "center",
                       justifyContent: "center",
-                      shadowColor: student.avatarColor,
-                      shadowOpacity: 0.3,
-                      shadowRadius: 4,
-                      shadowOffset: { width: 0, height: 2 },
                     }}
                   >
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontFamily: "Inter_700Bold",
-                        color: "#FFFFFF",
-                      }}
-                    >
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
                       {tName(student.name)?.[0]}
                     </Text>
                   </View>
 
                   {/* Bar + info */}
                   <View style={{ flex: 1 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        marginBottom: 5,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontFamily: "Inter_600SemiBold",
-                          color: "#1C1C1E",
-                        }}
-                      >
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT }}>
                         {tName(student.name)}
                       </Text>
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontFamily: "Inter_700Bold",
-                          color: "#6B5CF6",
-                        }}
-                      >
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: BLUE }}>
                         {student.lessonsCompleted ?? 0} {t("analyticsLrAbbr")}
                       </Text>
                     </View>
-                    <View
-                      style={{
-                        height: 6,
-                        backgroundColor: "#F2F2F7",
-                        borderRadius: 3,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <View
-                        style={{
-                          height: 6,
-                          width: `${Math.round(pct * 100)}%`,
-                          backgroundColor:
-                            student.avatarColor ?? "#6B5CF6",
-                          borderRadius: 3,
-                        }}
-                      />
+                    <View style={{ height: 6, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
+                      <View style={{ height: 6, width: `${Math.round(pct * 100)}%`, backgroundColor: student.avatarColor ?? BLUE, borderRadius: 3 }} />
                     </View>
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontFamily: "Inter_400Regular",
-                        color: "#AEAEB2",
-                        marginTop: 4,
-                      }}
-                    >
+                    <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: SUB, marginTop: 4 }}>
                       {tSubject(student.type)} · {student.attendance ?? 0}% {t("analyticsAttAbbr")}
                     </Text>
                   </View>
@@ -1009,40 +780,15 @@ export default function AnalyticsScreen() {
         <View style={{ paddingHorizontal: 20 }}>
           <SectionHeader title={t("analyticsAttendance")} subtitle={t("analyticsDistrib")} />
           <Card>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 20 }}
-            >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
               {/* Donut */}
               <View style={{ width: 124, height: 124 }}>
                 <DonutChart data={attendanceDist} size={124} strokeW={17} />
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 21,
-                      fontFamily: "Inter_700Bold",
-                      color: "#1C1C1E",
-                      letterSpacing: -0.4,
-                    }}
-                  >
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 21, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.4 }}>
                     {avgAttendance}%
                   </Text>
-                  <Text
-                    style={{
-                      fontSize: 9,
-                      fontFamily: "Inter_400Regular",
-                      color: "#8E8E93",
-                    }}
-                  >
+                  <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB }}>
                     {t("analyticsAvg")}
                   </Text>
                 </View>
@@ -1051,53 +797,18 @@ export default function AnalyticsScreen() {
               {/* Legend */}
               <View style={{ flex: 1, gap: 14 }}>
                 {attendanceDist.map((seg, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 10,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 5,
-                        backgroundColor: seg.color,
-                      }}
-                    />
+                  <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: seg.color }} />
                     <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: 12,
-                          fontFamily: "Inter_500Medium",
-                          color: "#1C1C1E",
-                        }}
-                      >
+                      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: TEXT }}>
                         {seg.label}
                       </Text>
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          fontFamily: "Inter_400Regular",
-                          color: "#8E8E93",
-                        }}
-                      >
+                      <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB }}>
                         {seg.value} {tp(seg.value, "student")}
                       </Text>
                     </View>
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontFamily: "Inter_700Bold",
-                        color: seg.color,
-                      }}
-                    >
-                      {students.length > 0
-                        ? Math.round((seg.value / students.length) * 100)
-                        : 0}
-                      %
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: seg.color }}>
+                      {students.length > 0 ? Math.round((seg.value / students.length) * 100) : 0}%
                     </Text>
                   </View>
                 ))}

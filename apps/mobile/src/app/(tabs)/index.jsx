@@ -5,10 +5,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   Bell, MessageSquare, GraduationCap, ChevronRight,
   Users, BookOpen, ClipboardList, CalendarClock,
-  UserPlus, FilePlus, BarChart3, CalendarPlus,
+  UserPlus, FilePlus, BarChart3, CalendarPlus, PenLine, ArrowLeft, FileCheck2, ShieldCheck,
 } from "lucide-react-native";
 import { auth } from "@/utils/firebase/config";
 import { useStudentsStore } from "@/utils/students/store";
@@ -16,29 +17,34 @@ import { useLessonsStore } from "@/utils/lessons/store";
 import { useReportsStore } from "@/utils/reports/store";
 import { useGroupsStore } from "@/utils/groups/store";
 import { useVipStore, FREE_LIMIT } from "@/utils/vip/store";
+import { useMyRole } from "@/utils/auth/useMyRole";
+import { isStaffRole } from "@/utils/auth/permissions";
 import AddStudentModal from "@/components/AddStudentModal";
 import VipPaywallModal from "@/components/VipPaywallModal";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 
-// ─── palette ─────────────────────────────────────────────────────────────────
-const NAVY_GRAD = ["#22447A", "#152C51"];   // header gradient
-const SHEET  = "#F4F5F7";                    // light sheet under header
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
 const CARD   = "#FFFFFF";
 const TEXT   = "#111827";
 const SUB    = "#8E93A1";
-const BLUE   = "#2563EB";                     // accent / links / primary action
+const BORDER = "#E5E9F2";
 const GREEN  = "#10B981";
 const PURPLE = "#8B5CF6";
 const ORANGE = "#F59E0B";
 
 // subject colour palette (chip text + light bg)
 const SUBJECT_PALETTE = [
-  { c: "#2563EB", bg: "#E8EEFB" },
-  { c: "#10B981", bg: "#E4F6EF" },
-  { c: "#8B5CF6", bg: "#F0EAFC" },
-  { c: "#F59E0B", bg: "#FDF1DF" },
-  { c: "#EC4899", bg: "#FCE7F1" },
-  { c: "#06B6D4", bg: "#E1F5FA" },
+  { c: BLUE,        bg: BLUE_50 },
+  { c: GREEN,        bg: "#E4F6EF" },
+  { c: PURPLE,       bg: INDIGO_50 },
+  { c: ORANGE,       bg: "#FDF1DF" },
+  { c: "#EC4899",    bg: "#FCE7F1" },
+  { c: "#06B6D4",    bg: "#E1F5FA" },
 ];
 function subjectColors(name = "") {
   let h = 0;
@@ -77,6 +83,7 @@ function initials(name = "") {
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const myRole = useMyRole();
   const { t, tSubject, tName, tNameList, months, days } = useT();
   const [showAdd,     setShowAdd]     = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -147,111 +154,133 @@ export default function HomeScreen() {
   const dateHeader = `${now.getDate()} ${shortMonths[now.getMonth()]}, ${days(false)[(now.getDay() + 6) % 7]}`;
 
   const STATS = [
-    { icon: Users,         value: students.length,  label: t("homeStatStudents") },
-    { icon: BookOpen,      value: todayCount,        label: t("homeStatTodayLessons") },
-    { icon: ClipboardList, value: reports.length,    label: t("homeStatReports") },
-    { icon: CalendarClock, value: upcomingCount,     label: t("homeStatUpcoming") },
+    { icon: Users,         value: students.length,  label: t("homeStatStudents"),     color: BLUE,   bg: BLUE_50 },
+    { icon: BookOpen,      value: todayCount,        label: t("homeStatTodayLessons"), color: INDIGO, bg: INDIGO_50 },
+    { icon: ClipboardList, value: reports.length,    label: t("homeStatReports"),      color: GREEN,  bg: "#ECFDF5" },
+    { icon: CalendarClock, value: upcomingCount,     label: t("homeStatUpcoming"),     color: ORANGE, bg: "#FFFBEB" },
   ];
 
   const QUICK = [
-    { icon: CalendarPlus, color: BLUE,   bg: "#E8EEFB", label: t("homeAddLesson"),    onPress: () => router.push("/lesson/add") },
-    { icon: UserPlus,     color: GREEN,  bg: "#E4F6EF", label: t("homeAddStudent"),   onPress: () => { if (students.length >= FREE_LIMIT && !isVip) setShowPaywall(true); else setShowAdd(true); } },
-    { icon: FilePlus,     color: PURPLE, bg: "#F0EAFC", label: t("homeCreateReport"), onPress: () => router.push("/report/add") },
-    { icon: BarChart3,    color: ORANGE, bg: "#FDF1DF", label: t("homeStatistics"),   onPress: () => router.navigate("/(tabs)/analytics") },
+    { icon: CalendarPlus,  color: BLUE,      bg: BLUE_50,    label: t("homeAddLesson"),    onPress: () => router.push("/lesson/add") },
+    { icon: UserPlus,      color: GREEN,     bg: "#ECFDF5",  label: t("homeAddStudent"),   onPress: () => { if (students.length >= FREE_LIMIT && !isVip) setShowPaywall(true); else setShowAdd(true); } },
+    { icon: FilePlus,      color: PURPLE,    bg: INDIGO_50,  label: t("homeCreateReport"), onPress: () => router.push("/report/add") },
+    { icon: ClipboardList, color: "#0EA5E9", bg: "#E0F2FE",  label: t("homeHomework"),     onPress: () => router.push("/homework") },
+    { icon: PenLine,       color: "#EC4899", bg: "#FCE7F1",  label: t("homeWriting"),      onPress: () => router.push("/writing") },
+    { icon: FileCheck2,    color: INDIGO,    bg: INDIGO_50,  label: t("examsTitle"),       onPress: () => router.push("/exams") },
+    { icon: BarChart3,     color: ORANGE,    bg: "#FFFBEB",  label: t("homeStatistics"),   onPress: () => router.navigate("/(tabs)/analytics") },
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: SHEET }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Fills the top overscroll/bounce gap with navy instead of the sheet's white */}
-        <View style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: NAVY_GRAD[0] }} />
-
-        {/* ══ NAVY HEADER ══════════════════════════════════════════════════ */}
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
         <LinearGradient
-          colors={NAVY_GRAD}
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.55, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.4, y: 1 }}
-          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 30 }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 24 }}
         >
           {/* top row: logo + actions */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
-                <GraduationCap size={21} color="#FFFFFF" strokeWidth={2} />
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+                <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
               </View>
               <View>
-                <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3, lineHeight: 20 }}>
+                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>
                   Jeff
                 </Text>
-                <Text style={{ fontSize: 9.5, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", letterSpacing: 0.3 }}>
+                <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>
                   Colleges
                 </Text>
               </View>
             </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity activeOpacity={0.7} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
-                <Bell size={19} color="#FFFFFF" strokeWidth={1.9} />
-                <View style={{ position: "absolute", top: 9, right: 9, width: 8, height: 8, borderRadius: 4, backgroundColor: "#4C8DFF", borderWidth: 1.5, borderColor: "#1D3560" }} />
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.7} style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}>
-                <MessageSquare size={19} color="#FFFFFF" strokeWidth={1.9} />
-              </TouchableOpacity>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              {isStaffRole(myRole) && (
+                <PressableScale
+                  onPress={() => router.replace("/(admin-tabs)")}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("backToAdmin")}
+                  scaleTo={0.94}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5, height: 40, paddingHorizontal: 12, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER }}
+                >
+                  <ArrowLeft size={15} color={TEXT} />
+                  <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: TEXT }}>{t("backToAdmin")}</Text>
+                </PressableScale>
+              )}
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={t("homeStatUpcoming")}
+                scaleTo={0.92}
+                style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
+              >
+                <Bell size={18} color={TEXT} strokeWidth={1.9} />
+                <View style={{ position: "absolute", top: 10, right: 11, width: 7, height: 7, borderRadius: 4, backgroundColor: BLUE }} />
+              </PressableScale>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Messages"
+                scaleTo={0.92}
+                style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
+              >
+                <MessageSquare size={18} color={TEXT} strokeWidth={1.9} />
+              </PressableScale>
             </View>
           </View>
 
           {/* greeting */}
-          <Text style={{ fontSize: 15, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.72)" }}>
-            {t(getGreetingKey())}
-          </Text>
-          <Text style={{ fontSize: 27, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.4, marginTop: 3 }}>
-            {tName(fullName)}
-          </Text>
-          <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.6)", marginTop: 3 }}>
-            {t("profileTeacher")}
-          </Text>
+          <Animated.View entering={FadeInDown.duration(380).easing(Easing.out(Easing.cubic))}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "rgba(37,99,235,0.1)", flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <ShieldCheck size={12} color={BLUE} />
+                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: BLUE, letterSpacing: 0.2 }}>{t("profileTeacher").toUpperCase()}</Text>
+              </View>
+            </View>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB }}>
+              {t(getGreetingKey())}
+            </Text>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>
+              {tName(fullName)}
+            </Text>
+          </Animated.View>
 
-          {/* stats card */}
-          <View style={{ flexDirection: "row", marginTop: 22, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", paddingVertical: 16 }}>
-            {STATS.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <View
-                  key={i}
-                  style={{
-                    flex: 1, alignItems: "center", paddingHorizontal: 4,
-                    borderLeftWidth: i === 0 ? 0 : 1,
-                    borderLeftColor: "rgba(255,255,255,0.1)",
-                  }}
-                >
-                  <Icon size={19} color="rgba(255,255,255,0.72)" strokeWidth={1.9} />
-                  <Text style={{ fontSize: 21, fontFamily: "Inter_700Bold", color: "#FFFFFF", marginTop: 7 }}>
-                    {s.value}
-                  </Text>
-                  <Text style={{ fontSize: 10.5, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.62)", textAlign: "center", marginTop: 3, lineHeight: 13 }}>
-                    {s.label}
-                  </Text>
+          {/* stat cards — wrapping grid, same rhythm as the Boss dashboard */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 22 }}>
+            {STATS.map((s, i) => (
+              <Animated.View
+                key={s.label}
+                entering={FadeInDown.delay(80 + i * 60).duration(380).easing(Easing.out(Easing.cubic))}
+                style={{ flexBasis: "47%", flexGrow: 1 }}
+              >
+                <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: INDIGO, shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: s.bg, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                    <s.icon size={17} color={s.color} strokeWidth={2} />
+                  </View>
+                  <Text numberOfLines={1} style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.4 }}>{s.value}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 12.5, fontFamily: "Inter_500Medium", color: SUB, marginTop: 3 }}>{s.label}</Text>
                 </View>
-              );
-            })}
+              </Animated.View>
+            ))}
           </View>
         </LinearGradient>
 
-        {/* ══ WHITE SHEET ══════════════════════════════════════════════════ */}
-        <View style={{ flex: 1, backgroundColor: SHEET, borderTopLeftRadius: 26, borderTopRightRadius: 26, marginTop: -14, paddingTop: 22, paddingBottom: insets.bottom + 24 }}>
+        {/* ── SECTION 2 — Today's timeline (white) ── */}
+        <View style={{ paddingHorizontal: 20, paddingTop: 28, marginBottom: 26 }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3 }}>{t("today")}</Text>
+            <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: BLUE }}>{dateHeader}</Text>
+          </View>
 
-          {/* ── Сегодня ─────────────────────────────────────────────────── */}
-          <View style={{ paddingHorizontal: 20, marginBottom: 26 }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT }}>{t("today")}</Text>
-              <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: BLUE }}>{dateHeader}</Text>
-            </View>
-
-            {todayLessons.length > 0 ? (
-              <View style={{ backgroundColor: CARD, borderRadius: 16, paddingHorizontal: 13, position: "relative", shadowColor: "#0B1B3A", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+          {todayLessons.length > 0 ? (
+            <Animated.View entering={FadeInDown.duration(340)}>
+              <View style={{ backgroundColor: CARD, borderRadius: 18, paddingHorizontal: 13, position: "relative", borderWidth: 1, borderColor: BORDER }}>
                 {/* single continuous timeline line — drawn first (bottom layer) so dots sit on top of it */}
                 {timelineGeometry && (
                   <View
@@ -262,7 +291,7 @@ export default function HomeScreen() {
                       top: timelineGeometry.top,
                       height: timelineGeometry.height,
                       width: 2,
-                      backgroundColor: "#D5D9E0",
+                      backgroundColor: "#E5E9F2",
                     }}
                   />
                 )}
@@ -273,16 +302,16 @@ export default function HomeScreen() {
                   const isLast  = i === todayLessons.length - 1;
                   const dotColor = isFirst ? BLUE : "#D8DBE2";
                   return (
-                    <TouchableOpacity
+                    <PressableScale
                       key={l.id}
                       onPress={() => router.push(`/lesson/${l.id}`)}
-                      activeOpacity={0.7}
+                      scaleTo={0.985}
                       onLayout={(e) => handleRowLayout(i, e)}
                       style={{
                         flexDirection: "row", alignItems: "center", gap: 9,
                         paddingVertical: 11,
                         borderBottomWidth: isLast ? 0 : 1,
-                        borderBottomColor: "#EEF0F3",
+                        borderBottomColor: "#F1F5F9",
                       }}
                     >
                       {/* time */}
@@ -313,45 +342,46 @@ export default function HomeScreen() {
                       </View>
 
                       <ChevronRight size={16} color="#C6CBD5" strokeWidth={2} />
-                    </TouchableOpacity>
+                    </PressableScale>
                   );
                 })}
               </View>
-            ) : (
-              <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 16, alignItems: "center" }}>
-                <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB }}>
-                  {t("homeNoLessonsToday")}
-                </Text>
-              </View>
-            )}
-          </View>
+            </Animated.View>
+          ) : (
+            <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 18, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB }}>
+                {t("homeNoLessonsToday")}
+              </Text>
+            </View>
+          )}
+        </View>
 
-          {/* ── Группы ──────────────────────────────────────────────────── */}
-          {activeGroups.length > 0 && (
-            <View style={{ marginBottom: 26 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingHorizontal: 20 }}>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>{t("homeGroupsTitle")}</Text>
-                <TouchableOpacity onPress={() => router.navigate("/(tabs)/students")} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: BLUE }}>{t("homeAllGroups")}</Text>
-                </TouchableOpacity>
-              </View>
+        {/* ── SECTION 3 — Groups (white) ── */}
+        {activeGroups.length > 0 && (
+          <View style={{ marginBottom: 26 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingHorizontal: 20 }}>
+              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3 }}>{t("homeGroupsTitle")}</Text>
+              <TouchableOpacity onPress={() => router.navigate("/(tabs)/students")} activeOpacity={0.7}>
+                <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: BLUE }}>{t("homeAllGroups")}</Text>
+              </TouchableOpacity>
+            </View>
 
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
-              >
-                {activeGroups.map((g) => {
-                  const sc = subjectColors(g.name ?? "");
-                  return (
-                    <TouchableOpacity
-                      key={g.id}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 20, gap: 12 }}
+            >
+              {activeGroups.map((g, i) => {
+                const sc = subjectColors(g.name ?? "");
+                return (
+                  <Animated.View key={g.id} entering={FadeInDown.delay(40 + i * 40).duration(300)}>
+                    <PressableScale
                       onPress={() => router.push(`/group/${g.id}`)}
-                      activeOpacity={0.85}
+                      scaleTo={0.97}
                       style={{
-                        width: 132, minHeight: 130, backgroundColor: CARD, borderRadius: 15,
+                        width: 132, minHeight: 130, backgroundColor: CARD, borderRadius: 16,
                         padding: 12, justifyContent: "space-between",
-                        shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+                        borderWidth: 1, borderColor: BORDER,
                       }}
                     >
                       <View>
@@ -365,97 +395,96 @@ export default function HomeScreen() {
                       <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: sc.bg, alignItems: "center", justifyContent: "center" }}>
                         <Users size={18} color={sc.c} strokeWidth={2} />
                       </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+                    </PressableScale>
+                  </Animated.View>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── SECTION 4 — Recent reports (white) ── */}
+        {recentRpts.length > 0 && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 26 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3 }}>{t("homeRecentReports")}</Text>
+              <TouchableOpacity onPress={() => router.navigate("/(tabs)/reports")} activeOpacity={0.7}>
+                <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: BLUE }}>{t("homeViewAll")}</Text>
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* ── Недавние отчёты ─────────────────────────────────────────── */}
-          {recentRpts.length > 0 && (
-            <View style={{ paddingHorizontal: 20, marginBottom: 26 }}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT }}>{t("homeRecentReports")}</Text>
-                <TouchableOpacity onPress={() => router.navigate("/(tabs)/reports")} activeOpacity={0.7}>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: BLUE }}>{t("homeViewAll")}</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", shadowColor: "#0B1B3A", shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}>
-                {recentRpts.map((r, i) => {
-                  const score10 = (r.activityScore ?? 0) * 2;
-                  const badgeColor = score10 >= 8 ? GREEN : score10 >= 6 ? BLUE : score10 >= 4 ? ORANGE : "#EF4444";
-                  const badgeBg    = score10 >= 8 ? "#E4F6EF" : score10 >= 6 ? "#E8EEFB" : score10 >= 4 ? "#FDF1DF" : "#FDE8E8";
-                  const [, mn, dy] = (r.date ?? "").split("-").map(Number);
-                  const d = new Date(r.createdAt);
-                  const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                  const dateStr = mn ? `${dy} ${shortMonths[mn - 1]}, ${timeStr}` : timeStr;
-                  return (
-                    <TouchableOpacity
-                      key={r.id}
-                      onPress={() => router.push(`/report/${r.id}`)}
-                      activeOpacity={0.75}
-                      style={{
-                        flexDirection: "row", alignItems: "center", gap: 12, padding: 14,
-                        borderBottomWidth: i < recentRpts.length - 1 ? 1 : 0,
-                        borderBottomColor: "#F1F2F5",
-                      }}
-                    >
-                      <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: avatarBg(r.studentName ?? ""), alignItems: "center", justifyContent: "center" }}>
-                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" }}>
-                          {initials(tName(r.studentName) ?? "?")}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={{ fontSize: 14.5, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 2 }}>
-                          {tName(r.studentName) ?? "—"}
-                        </Text>
-                        <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
-                          {r.subject ? `${tSubject(r.subject)} • ${dateStr}` : dateStr}
-                        </Text>
-                      </View>
-                      <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: badgeBg }}>
-                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: badgeColor }}>
-                          {score10}/10
-                        </Text>
-                      </View>
-                      <ChevronRight size={17} color="#C6CBD5" strokeWidth={2} />
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* ── Быстрые действия ────────────────────────────────────────── */}
-          <View style={{ paddingHorizontal: 20 }}>
-            <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 12 }}>
-              {t("homeQuickActions")}
-            </Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              {QUICK.map((q, i) => {
-                const Icon = q.icon;
+            <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
+              {recentRpts.map((r, i) => {
+                const score10 = (r.activityScore ?? 0) * 2;
+                const badgeColor = score10 >= 8 ? GREEN : score10 >= 6 ? BLUE : score10 >= 4 ? ORANGE : "#EF4444";
+                const badgeBg    = score10 >= 8 ? "#ECFDF5" : score10 >= 6 ? BLUE_50 : score10 >= 4 ? "#FFFBEB" : "#FEF2F2";
+                const [, mn, dy] = (r.date ?? "").split("-").map(Number);
+                const d = new Date(r.createdAt);
+                const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                const dateStr = mn ? `${dy} ${shortMonths[mn - 1]}, ${timeStr}` : timeStr;
                 return (
-                  <TouchableOpacity
-                    key={i}
-                    onPress={q.onPress}
-                    activeOpacity={0.85}
-                    style={{ flex: 1, backgroundColor: CARD, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 6, alignItems: "center", gap: 9, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}
+                  <PressableScale
+                    key={r.id}
+                    onPress={() => router.push(`/report/${r.id}`)}
+                    scaleTo={0.985}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 12, padding: 14,
+                      borderTopWidth: i > 0 ? 1 : 0,
+                      borderTopColor: "#F1F5F9",
+                    }}
                   >
-                    <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: q.bg, alignItems: "center", justifyContent: "center" }}>
-                      <Icon size={22} color={q.color} strokeWidth={2} />
+                    <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: avatarBg(r.studentName ?? ""), alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" }}>
+                        {initials(tName(r.studentName) ?? "?")}
+                      </Text>
                     </View>
-                    <Text style={{ fontSize: 11.5, fontFamily: "Inter_500Medium", color: TEXT, textAlign: "center", lineHeight: 14 }}>
-                      {q.label}
-                    </Text>
-                  </TouchableOpacity>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1} style={{ fontSize: 14.5, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 2 }}>
+                        {tName(r.studentName) ?? "—"}
+                      </Text>
+                      <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
+                        {r.subject ? `${tSubject(r.subject)} • ${dateStr}` : dateStr}
+                      </Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 9, backgroundColor: badgeBg }}>
+                      <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: badgeColor }}>
+                        {score10}/10
+                      </Text>
+                    </View>
+                    <ChevronRight size={17} color="#C6CBD5" strokeWidth={2} />
+                  </PressableScale>
                 );
               })}
             </View>
           </View>
+        )}
 
+        {/* ── SECTION 5 — Quick actions (white) ── */}
+        <View style={{ paddingHorizontal: 20 }}>
+          <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 14, letterSpacing: -0.3 }}>
+            {t("homeQuickActions")}
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {QUICK.map((q, i) => (
+              <Animated.View key={i} entering={FadeInDown.delay(40 + i * 40).duration(300)} style={{ flexBasis: "22%", flexGrow: 1 }}>
+                <PressableScale
+                  onPress={q.onPress}
+                  accessibilityRole="button"
+                  accessibilityLabel={q.label}
+                  style={{ alignItems: "center", gap: 8, paddingVertical: 6 }}
+                >
+                  <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: q.bg, alignItems: "center", justifyContent: "center" }}>
+                    <q.icon size={22} color={q.color} strokeWidth={2} />
+                  </View>
+                  <Text numberOfLines={2} style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center", lineHeight: 14 }}>
+                    {q.label}
+                  </Text>
+                </PressableScale>
+              </Animated.View>
+            ))}
+          </View>
         </View>
+
       </ScrollView>
 
       <AddStudentModal visible={showAdd} onClose={() => setShowAdd(false)} />

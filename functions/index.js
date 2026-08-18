@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { setGlobalOptions } = require('firebase-functions/v2');
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
@@ -184,9 +185,17 @@ exports.createManagedAccount = onCall({ invoker: 'public' }, async (request) => 
   }
 
   const now = Date.now();
-  const batch = db.batch();
-  await buildRoleDocs(batch, db, uid, role, firstName, lastName, normalizedEmail, now);
-  await batch.commit();
+  try {
+    const batch = db.batch();
+    await buildRoleDocs(batch, db, uid, role, firstName, lastName, normalizedEmail, now);
+    await batch.commit();
+  } catch (e) {
+    // The Auth user already exists at this point — if the Firestore side
+    // fails, roll it back rather than leaving an orphaned login with no
+    // users/{uid} doc (invisible to the app, unrecoverable through the UI).
+    await auth.deleteUser(uid).catch(() => {});
+    throw new HttpsError('internal', 'Не удалось создать аккаунт (откачено)');
+  }
 
   return { uid };
 });
@@ -231,23 +240,36 @@ exports.listManagedTeachers = onCall({ invoker: 'public' }, async (request) => {
   };
 });
 
-const MANAGED_STORE_NAMES = ['students', 'lessons', 'payments', 'schedules', 'progress', 'reports', 'groups'];
+// `reports` is absent: it lives in a per-document subcollection and is
+// fetched separately, bounded, below.
+const MANAGED_STORE_NAMES = ['students', 'lessons', 'payments', 'schedules', 'progress', 'groups'];
+const MANAGED_REPORTS_LIMIT = 200;
 
 exports.getManagedTeacherStores = onCall({ invoker: 'public' }, async (request) => {
   const { db, callerRole } = await requireStaffCaller(request, ['boss', 'admin']);
   const { teacherUid } = request.data ?? {};
   if (!teacherUid) throw new HttpsError('invalid-argument', 'teacherUid обязателен');
 
-  const results = await Promise.all(
-    MANAGED_STORE_NAMES.map((name) =>
-      db.collection('teachers').doc(teacherUid).collection('stores').doc(name).get()
-    )
-  );
+  const [results, reportsSnap, reportsCountSnap] = await Promise.all([
+    Promise.all(
+      MANAGED_STORE_NAMES.map((name) =>
+        db.collection('teachers').doc(teacherUid).collection('stores').doc(name).get()
+      )
+    ),
+    db.collection('teachers').doc(teacherUid).collection('reports')
+      .orderBy('createdAt', 'desc').limit(MANAGED_REPORTS_LIMIT).get(),
+    // Separate aggregation query — reportsSnap above is capped at
+    // MANAGED_REPORTS_LIMIT for display, so reportsSnap.docs.length can't be
+    // used as the true total once a teacher passes that cap.
+    db.collection('teachers').doc(teacherUid).collection('reports').count().get(),
+  ]);
 
   const stores = {};
   MANAGED_STORE_NAMES.forEach((name, i) => {
     stores[name] = results[i].exists ? (results[i].data().data ?? null) : null;
   });
+  stores.reports = reportsSnap.docs.map((d) => d.data());
+  stores.reportsCount = reportsCountSnap.data().count;
 
   if (callerRole === 'admin') {
     delete stores.payments; // Admin has no finance access
@@ -256,7 +278,9 @@ exports.getManagedTeacherStores = onCall({ invoker: 'public' }, async (request) 
   return { stores };
 });
 
-const ANALYTICS_STORE_NAMES = ['students', 'lessons', 'reports', 'payments'];
+// `reports` uses an aggregation count query instead — no need to pull the
+// records themselves just to read a length.
+const ANALYTICS_STORE_NAMES = ['students', 'lessons', 'payments'];
 
 // Boss/Admin. Aggregates counts across every teacher in one call so the
 // roster screen doesn't need N client round-trips. Income is included only
@@ -269,15 +293,18 @@ exports.getOrgAnalytics = onCall({ invoker: 'public' }, async (request) => {
 
   const perTeacherResults = await Promise.all(
     teacherUids.map(async (uid) => {
-      const results = await Promise.all(
-        ANALYTICS_STORE_NAMES.map((name) =>
-          db.collection('teachers').doc(uid).collection('stores').doc(name).get()
-        )
-      );
-      const [studentsSnap, lessonsSnap, reportsSnap, paymentsSnap] = results;
+      const [results, reportsCountSnap] = await Promise.all([
+        Promise.all(
+          ANALYTICS_STORE_NAMES.map((name) =>
+            db.collection('teachers').doc(uid).collection('stores').doc(name).get()
+          )
+        ),
+        db.collection('teachers').doc(uid).collection('reports').count().get(),
+      ]);
+      const [studentsSnap, lessonsSnap, paymentsSnap] = results;
       const studentsCount = studentsSnap.exists ? (studentsSnap.data().data ?? []).length : 0;
       const lessonsCount  = lessonsSnap.exists  ? (lessonsSnap.data().data ?? []).length  : 0;
-      const reportsCount  = reportsSnap.exists  ? (reportsSnap.data().data ?? []).length  : 0;
+      const reportsCount  = reportsCountSnap.data().count;
       const payments      = paymentsSnap.exists ? (paymentsSnap.data().data ?? []) : [];
       const income = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0);
       return { uid, studentsCount, lessonsCount, reportsCount, income };
@@ -414,28 +441,38 @@ exports.listManagedParents = onCall({ invoker: 'public' }, async (request) => {
     db.collection('teachers').get(),
   ]);
   const teacherNames = buildTeacherNameMap(teachersSnap);
-  const disabledMap = await buildDisabledMap(db, parentsSnap.docs.map((d) => d.id));
+  const parentUids = parentsSnap.docs.map((d) => d.id);
 
-  const parents = await Promise.all(
-    parentsSnap.docs.map(async (d) => {
-      const p = d.data();
-      const linksSnap = await db.collection('parentAccess').doc(d.id).collection('teachers').get();
-      const linkedTeachers = linksSnap.docs.map((l) => ({
-        uid: l.id,
-        name: teacherNames[l.id] ?? l.id,
-      }));
-      return {
-        uid: d.id,
-        firstName: p.firstName ?? '',
-        lastName: p.lastName ?? '',
-        email: p.email ?? '',
-        parentCode: p.parentCode ?? null,
-        createdAt: p.createdAt ?? null,
-        disabled: disabledMap[d.id] ?? false,
-        linkedTeachers,
-      };
-    })
-  );
+  // The disabled flags (users/{uid}) and the parent→teacher links
+  // (parentAccess/{uid}/teachers) both only need the parent uids, so they're
+  // independent of each other. Awaiting the first before starting the second
+  // cost an extra full round-trip wave for no reason.
+  const [disabledMap, linksPerParent] = await Promise.all([
+    buildDisabledMap(db, parentUids),
+    Promise.all(
+      parentUids.map((uid) =>
+        db.collection('parentAccess').doc(uid).collection('teachers').get()
+      )
+    ),
+  ]);
+
+  const parents = parentsSnap.docs.map((d, i) => {
+    const p = d.data();
+    const linkedTeachers = linksPerParent[i].docs.map((l) => ({
+      uid: l.id,
+      name: teacherNames[l.id] ?? l.id,
+    }));
+    return {
+      uid: d.id,
+      firstName: p.firstName ?? '',
+      lastName: p.lastName ?? '',
+      email: p.email ?? '',
+      parentCode: p.parentCode ?? null,
+      createdAt: p.createdAt ?? null,
+      disabled: disabledMap[d.id] ?? false,
+      linkedTeachers,
+    };
+  });
 
   return { parents };
 });
@@ -445,7 +482,11 @@ exports.listManagedParents = onCall({ invoker: 'public' }, async (request) => {
 // teacher, newest first. Payment events are omitted for Admin — same
 // finance rule as the rest of this API.
 
-const ACTIVITY_STORE_NAMES = ['students', 'reports', 'payments'];
+// `reports` uses a bounded, pre-sorted subcollection query instead.
+const ACTIVITY_STORE_NAMES = ['students', 'payments'];
+// The final merge slices to 40 events overall, so no single teacher can
+// contribute more than 40 — fetching more per teacher would be wasted work.
+const ACTIVITY_FEED_LIMIT = 40;
 
 exports.getOrgActivity = onCall({ invoker: 'public' }, async (request) => {
   const { db, callerRole } = await requireStaffCaller(request, ['boss', 'admin']);
@@ -458,11 +499,16 @@ exports.getOrgActivity = onCall({ invoker: 'public' }, async (request) => {
 
   await Promise.all(
     teacherUids.map(async (uid) => {
-      const [studentsSnap, reportsSnap, paymentsSnap] = await Promise.all(
-        ACTIVITY_STORE_NAMES.map((name) =>
-          db.collection('teachers').doc(uid).collection('stores').doc(name).get()
-        )
-      );
+      const [storeSnaps, reportsSnap] = await Promise.all([
+        Promise.all(
+          ACTIVITY_STORE_NAMES.map((name) =>
+            db.collection('teachers').doc(uid).collection('stores').doc(name).get()
+          )
+        ),
+        db.collection('teachers').doc(uid).collection('reports')
+          .orderBy('createdAt', 'desc').limit(ACTIVITY_FEED_LIMIT).get(),
+      ]);
+      const [studentsSnap, paymentsSnap] = storeSnaps;
       const teacherName = teacherNames[uid] ?? uid;
 
       (studentsSnap.exists ? (studentsSnap.data().data ?? []) : []).forEach((s) => {
@@ -470,7 +516,8 @@ exports.getOrgActivity = onCall({ invoker: 'public' }, async (request) => {
         events.push({ type: 'student', teacherUid: uid, teacherName, title: s.name ?? '', at: s.createdAt });
       });
 
-      (reportsSnap.exists ? (reportsSnap.data().data ?? []) : []).forEach((r) => {
+      reportsSnap.docs.forEach((d) => {
+        const r = d.data();
         if (!r.createdAt) return;
         events.push({
           type: 'report', teacherUid: uid, teacherName,
@@ -492,7 +539,7 @@ exports.getOrgActivity = onCall({ invoker: 'public' }, async (request) => {
 
   events.sort((a, b) => b.at - a.at);
 
-  return { events: events.slice(0, 40) };
+  return { events: events.slice(0, ACTIVITY_FEED_LIMIT) };
 });
 
 // ─── Finance overview (Boss-only) ──────────────────────────────────────────
@@ -506,10 +553,13 @@ function currentPeriod() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// Boss-only. Deletes one payment server-side — bypasses the client's 1.5s
+// Boss/Admin. Deletes one payment server-side — bypasses the client's 1.5s
 // debounced sync, which can silently lose a delete if the app closes first.
+// Admin is included because Admin is now the only role that *records*
+// payments (see addStudentPayment) — without delete, a mistyped amount would
+// be unfixable from the app.
 exports.deletePayment = onCall({ invoker: 'public' }, async (request) => {
-  const { db } = await requireStaffCaller(request, ['boss']);
+  const { db } = await requireStaffCaller(request, ['boss', 'admin']);
   const { teacherUid, paymentId } = request.data ?? {};
   if (!teacherUid || !paymentId) throw new HttpsError('invalid-argument', 'teacherUid и paymentId обязательны');
 
@@ -521,6 +571,140 @@ exports.deletePayment = onCall({ invoker: 'public' }, async (request) => {
 
   await ref.set({ data: filtered, ts: Date.now() }, { merge: false });
   return { success: true };
+});
+
+// ─── Student payments (Boss/Admin) ─────────────────────────────────────────
+// Powers the Финансы screen: for one calendar period, every student across
+// every teacher with whether they've paid. This is the two-sided version of
+// getFinanceOverview's `debtors` (which is unpaid-only, current-period-only,
+// Boss-only) — same underlying heuristic: a student counts as paid if ANY
+// payment exists with that `period`, regardless of amount.
+
+const PERIOD_RE = /^\d{4}-\d{2}$/;
+// Same pattern as SCHEDULE_DATE_RE further down, declared locally rather than
+// forward-referencing a `const` defined ~500 lines below (which would work
+// only by accident of call timing).
+const PAYMENT_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PAYMENT_METHODS = ['cash', 'card', 'transfer'];
+
+exports.getStudentPayments = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['boss', 'admin']);
+  const period = (request.data ?? {}).period || currentPeriod();
+  if (!PERIOD_RE.test(period)) {
+    throw new HttpsError('invalid-argument', 'period должен быть в формате YYYY-MM');
+  }
+
+  const teachersSnap = await db.collection('teachers').get();
+  const teacherNames = buildTeacherNameMap(teachersSnap);
+
+  const perTeacher = await Promise.all(
+    teachersSnap.docs.map(async (d) => {
+      const teacherUid = d.id;
+      const [studentsSnap, paymentsSnap] = await Promise.all([
+        db.collection('teachers').doc(teacherUid).collection('stores').doc('students').get(),
+        db.collection('teachers').doc(teacherUid).collection('stores').doc('payments').get(),
+      ]);
+      const students = studentsSnap.exists ? (studentsSnap.data().data ?? []) : [];
+      const payments = paymentsSnap.exists ? (paymentsSnap.data().data ?? []) : [];
+
+      // studentId -> the payment covering this period (first one wins).
+      const paidMap = {};
+      payments.forEach((p) => {
+        if (p.period !== period) return;
+        const sid = String(p.studentId);
+        if (!paidMap[sid]) paidMap[sid] = p;
+      });
+
+      return students.map((s) => {
+        const paid = paidMap[String(s.id)];
+        return {
+          studentId: String(s.id),
+          studentName: s.name ?? '',
+          teacherUid,
+          teacherName: teacherNames[teacherUid],
+          // Carried through so the client can prefill an expected amount
+          // without duplicating pricing rules server-side.
+          paymentType: s.paymentType ?? null,
+          rate: s.rate ?? 0,
+          paid: !!paid,
+          paymentId: paid ? (paid.id ?? null) : null,
+          amount: paid ? (paid.amount ?? 0) : null,
+          date: paid ? (paid.date ?? null) : null,
+          method: paid ? (paid.method ?? null) : null,
+          note: paid ? (paid.note ?? '') : null,
+        };
+      });
+    })
+  );
+
+  const rows = perTeacher.flat().sort((a, b) => {
+    if (a.paid !== b.paid) return a.paid ? 1 : -1; // unpaid first — that's the actionable side
+    return (a.studentName || '').localeCompare(b.studentName || '');
+  });
+
+  const collected = rows.reduce((sum, r) => sum + (r.amount ?? 0), 0);
+  const paidCount = rows.filter((r) => r.paid).length;
+
+  return {
+    period,
+    rows,
+    totals: { collected, paidCount, unpaidCount: rows.length - paidCount },
+  };
+});
+
+// Boss/Admin. Records one payment into a teacher's payments store. Teachers
+// no longer have any payment UI of their own, so this is the only way a
+// payment enters the system.
+exports.addStudentPayment = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['boss', 'admin']);
+  const { teacherUid, studentId, amount, date, period, method, note } = request.data ?? {};
+
+  await requireTeachingAccount(db, teacherUid);
+
+  if (!studentId) throw new HttpsError('invalid-argument', 'studentId обязателен');
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0 || amt > 100000) {
+    throw new HttpsError('invalid-argument', 'amount должен быть числом от 1 до 100000');
+  }
+  if (!PAYMENT_DATE_RE.test(date ?? '')) {
+    throw new HttpsError('invalid-argument', 'date должен быть в формате YYYY-MM-DD');
+  }
+  if (!PERIOD_RE.test(period ?? '')) {
+    throw new HttpsError('invalid-argument', 'period должен быть в формате YYYY-MM');
+  }
+  if (!PAYMENT_METHODS.includes(method)) {
+    throw new HttpsError('invalid-argument', 'method недопустим');
+  }
+
+  const storesRef = db.collection('teachers').doc(teacherUid).collection('stores');
+  const [studentsSnap, paymentsSnap] = await Promise.all([
+    storesRef.doc('students').get(),
+    storesRef.doc('payments').get(),
+  ]);
+  const students = studentsSnap.exists ? (studentsSnap.data().data ?? []) : [];
+  const student = students.find((s) => String(s.id) === String(studentId));
+  if (!student) throw new HttpsError('not-found', 'Ученик не найден у этого учителя');
+
+  const payments = paymentsSnap.exists ? (paymentsSnap.data().data ?? []) : [];
+  const now = Date.now();
+  const record = {
+    id: `pay-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    studentId: String(studentId),
+    studentName: student.name ?? '',
+    amount: amt,
+    date,
+    period,
+    method,
+    note: typeof note === 'string' ? note.slice(0, 200) : '',
+    createdAt: now,
+  };
+
+  await storesRef.doc('payments').set(
+    { data: [...payments, record], ts: now },
+    { merge: false }
+  );
+
+  return { success: true, paymentId: record.id };
 });
 
 exports.getFinanceOverview = onCall({ invoker: 'public' }, async (request) => {
@@ -680,4 +864,495 @@ exports.getTeacherWorkload = onCall({ invoker: 'public' }, async (request) => {
     : 0;
 
   return { weekStart: start, weekEnd: end, avgLessons, teachers };
+});
+
+// ─── Push notifications: new report → notify linked student + parents ──────
+// Tokens are Expo push tokens (client uses getExpoPushTokenAsync), so we send
+// via Expo's push API, not admin.messaging(). Targeting needs no collectionGroup
+// queries — the teacher's own students/parents stores already denormalize the
+// links: student.linkedStudentUid (the student's account uid) and the parents
+// store's {appUserId, studentIds}.
+
+async function sendExpoPush(messages) {
+  const valid = messages.filter((m) => typeof m.to === 'string' && m.to.startsWith('Expo'));
+  if (valid.length === 0) return;
+  // Expo accepts up to 100 messages per request.
+  for (let i = 0; i < valid.length; i += 100) {
+    const chunk = valid.slice(i, i + 100);
+    try {
+      await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(chunk),
+      });
+    } catch (e) {
+      console.error('Expo push send failed:', e.message);
+    }
+  }
+}
+
+// Reads a profile doc's Expo token from a given top-level collection.
+async function getExpoToken(db, collection, uid) {
+  if (!uid) return null;
+  const snap = await db.collection(collection).doc(uid).get();
+  return snap.exists ? (snap.data().fcmToken ?? null) : null;
+}
+
+// Fires once per new report document. The previous whole-array version had to
+// diff before/after and guard with a 15-minute createdAt window to avoid
+// re-notifying on bulk writes — neither is needed now that each report is its
+// own document.
+exports.onReportCreated = onDocumentCreated('teachers/{teacherUid}/reports/{reportId}', async (event) => {
+  const { teacherUid } = event.params;
+  const report = event.data?.data();
+  if (!report) return;
+
+  const db = getFirestore();
+
+  // Load the teacher's students + parents stores once (denormalized link source).
+  const [studentsSnap, parentsSnap] = await Promise.all([
+    db.collection('teachers').doc(teacherUid).collection('stores').doc('students').get(),
+    db.collection('teachers').doc(teacherUid).collection('stores').doc('parents').get(),
+  ]);
+  const students = studentsSnap.exists ? (studentsSnap.data().data ?? []) : [];
+  const parents = parentsSnap.exists ? (parentsSnap.data().data ?? []) : [];
+
+  const messages = [];
+  const sid = String(report.studentId);
+  const subject = report.subject ?? '';
+
+  // Student's own account.
+  const student = students.find((s) => String(s.id) === sid);
+  if (student?.linkedStudentUid) {
+    const token = await getExpoToken(db, 'students', student.linkedStudentUid);
+    if (token) {
+      messages.push({
+        to: token,
+        title: 'Новый отчёт',
+        body: subject ? `Преподаватель добавил отчёт по предмету ${subject}` : 'Преподаватель добавил новый отчёт',
+        sound: 'default',
+        data: { type: 'new_report', teacherUid, reportId: String(report.id) },
+      });
+    }
+  }
+
+  // Parents linked to this student (parents store: {appUserId, studentIds}).
+  const linkedParents = parents.filter(
+    (p) => p.appUserId && (p.studentIds ?? []).map(String).includes(sid)
+  );
+  for (const p of linkedParents) {
+    const token = await getExpoToken(db, 'parents', p.appUserId);
+    if (token) {
+      const who = student?.name ? ` по ученику ${student.name}` : '';
+      messages.push({
+        to: token,
+        title: 'Новый отчёт',
+        body: subject ? `Новый отчёт${who} — ${subject}` : `Новый отчёт${who}`,
+        sound: 'default',
+        data: { type: 'new_report', teacherUid, reportId: String(report.id), studentId: sid },
+      });
+    }
+  }
+
+  await sendExpoPush(messages);
+});
+
+// ─── Teacher salaries / payroll (Boss-only) ────────────────────────────────
+// Salary config lives on teachers/{uid}: { salaryType, salaryRate }.
+// salaryType: "per_lesson" | "hourly" | "fixed" | "none".
+// Boss writes it via this function (Admin SDK) since it's another user's doc.
+
+exports.setTeacherSalary = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['boss']);
+  const { teacherUid, salaryType, salaryRate } = request.data ?? {};
+  if (!teacherUid || !['per_lesson', 'hourly', 'fixed', 'none'].includes(salaryType)) {
+    throw new HttpsError('invalid-argument', 'teacherUid и корректный salaryType обязательны');
+  }
+  const rate = Number(salaryRate) || 0;
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100000) {
+    throw new HttpsError('invalid-argument', 'salaryRate должен быть числом от 0 до 100000');
+  }
+  await db.collection('teachers').doc(teacherUid).set(
+    { salaryType, salaryRate: rate, updatedAt: Date.now() },
+    { merge: true }
+  );
+  return { success: true };
+});
+
+// Computes each teacher's salary for one calendar month (YYYY-MM) from their
+// salary config + completed lessons that month.
+exports.getPayroll = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['boss']);
+  const period = (request.data ?? {}).period || currentPeriod();
+
+  const teachersSnap = await db.collection('teachers').get();
+  const rows = await Promise.all(teachersSnap.docs.map(async (d) => {
+    const t = d.data();
+    const name = `${t.firstName ?? ''} ${t.lastName ?? ''}`.trim() || t.email || d.id;
+    const salaryType = t.salaryType || 'none';
+    const rate = Number(t.salaryRate) || 0;
+
+    const snap = await db.collection('teachers').doc(d.id).collection('stores').doc('lessons').get();
+    const lessons = snap.exists ? (snap.data().data ?? []) : [];
+    const monthLessons = lessons.filter((l) => (l.date || '').startsWith(period) && l.status === 'completed');
+    const lessonCount = monthLessons.length;
+    const hours = monthLessons.reduce((s, l) => s + (l.duration ?? 60) / 60, 0);
+
+    let amount = 0;
+    if (salaryType === 'per_lesson') amount = lessonCount * rate;
+    else if (salaryType === 'hourly') amount = Math.round(hours * rate);
+    else if (salaryType === 'fixed') amount = rate;
+
+    return { uid: d.id, name, email: t.email ?? '', salaryType, rate, lessonCount, hours: Math.round(hours * 10) / 10, amount };
+  }));
+
+  rows.sort((a, b) => b.amount - a.amount);
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+  return { period, total, rows };
+});
+
+// ─── Admin: manage a teacher's schedule (Admin-only) ───────────────────────
+// Deliberately excludes Boss — see apps/mobile/src/utils/auth/permissions.js
+// (canManageSchedules), a product decision, not an oversight.
+//
+// `generateLessonsForSchedule`/`findScheduleConflicts` below are ported
+// near-verbatim from apps/mobile/src/utils/schedule/store.js (pure functions,
+// no RN/zustand deps) — that file stays the source of truth; keep both in
+// sync if the recurrence algorithm ever changes.
+
+function scheduleDateStr(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function generateLessonsForSchedule(schedule) {
+  const start = new Date(schedule.startDate + 'T12:00:00');
+  const endDate = schedule.endDate ? new Date(schedule.endDate + 'T23:59:59') : null;
+  const maxCount = schedule.lessonsCount ?? 52;
+  const baseTs = 1750100000000 + (schedule.id.charCodeAt(4) ?? 0);
+  const isParity = schedule.frequency === 'odd' || schedule.frequency === 'even';
+  const wantOdd = schedule.frequency === 'odd';
+
+  const freqDays =
+    schedule.frequency === 'weekly' ? 7
+    : schedule.frequency === 'biweekly' ? 14
+    : schedule.frequency === 'monthly' ? 28
+    : typeof schedule.frequency === 'number' ? schedule.frequency
+    : 7;
+
+  let current = new Date(start.getTime());
+  if (isParity) {
+    while (current.getDate() % 2 !== (wantOdd ? 1 : 0)) current.setDate(current.getDate() + 1);
+  } else {
+    while (current.getDay() !== schedule.dayOfWeek) current.setDate(current.getDate() + 1);
+  }
+
+  const lessons = [];
+  let count = 0;
+  while (count < maxCount) {
+    if (endDate && current > endDate) break;
+    if (isParity && (current.getTime() - start.getTime()) > 366 * 86400000) break;
+
+    lessons.push({
+      id: `sched-${schedule.id}-${count}`,
+      scheduleId: schedule.id,
+      subject: schedule.subject,
+      studentIds: schedule.studentIds,
+      studentNames: schedule.studentNames,
+      date: scheduleDateStr(current),
+      time: schedule.time,
+      duration: schedule.duration,
+      format: schedule.format ?? 'Онлайн',
+      status: 'planned',
+      notes: '',
+      homework: '',
+      createdAt: baseTs + count,
+    });
+
+    count++;
+    if (isParity) {
+      current.setDate(current.getDate() + 2);
+      while (current.getDate() % 2 !== (wantOdd ? 1 : 0)) current.setDate(current.getDate() + 1);
+    } else {
+      current.setDate(current.getDate() + freqDays);
+    }
+  }
+  return lessons;
+}
+
+function findScheduleConflicts(newLessons, existingLessons) {
+  const conflicts = [];
+  for (const newL of newLessons) {
+    const ns = new Date(`${newL.date}T${newL.time}:00`).getTime();
+    const ne = ns + (newL.duration ?? 60) * 60000;
+    for (const ex of existingLessons) {
+      if (ex.date !== newL.date || ex.status === 'cancelled') continue;
+      const es = new Date(`${ex.date}T${ex.time}:00`).getTime();
+      const ee = es + (ex.duration ?? 60) * 60000;
+      if (ns < ee && ne > es) {
+        conflicts.push({ lesson: newL, conflictWith: ex });
+        break;
+      }
+    }
+  }
+  return conflicts;
+}
+
+const SCHEDULE_DURATIONS = [30, 45, 60, 90, 120];
+const SCHEDULE_FORMATS = ['Онлайн', 'Офлайн'];
+const SCHEDULE_FREQUENCIES = ['weekly', 'biweekly', 'monthly', 'odd', 'even'];
+const SCHEDULE_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SCHEDULE_DAY_LABELS = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+function scheduleDayLabel(dayOfWeek) {
+  return SCHEDULE_DAY_LABELS[dayOfWeek] ?? '';
+}
+
+function validateScheduleFields(data) {
+  const { subject, time, duration, format, startDate, endDate, frequency, studentIds } = data;
+  if (typeof subject !== 'string' || !subject.trim()) {
+    throw new HttpsError('invalid-argument', 'subject обязателен');
+  }
+  if (!SCHEDULE_TIME_RE.test(time ?? '')) {
+    throw new HttpsError('invalid-argument', 'time должен быть в формате HH:MM');
+  }
+  if (!SCHEDULE_DURATIONS.includes(Number(duration))) {
+    throw new HttpsError('invalid-argument', 'duration недопустим');
+  }
+  if (!SCHEDULE_FORMATS.includes(format)) {
+    throw new HttpsError('invalid-argument', 'format недопустим');
+  }
+  if (!SCHEDULE_DATE_RE.test(startDate ?? '')) {
+    throw new HttpsError('invalid-argument', 'startDate должен быть в формате YYYY-MM-DD');
+  }
+  if (endDate && !SCHEDULE_DATE_RE.test(endDate)) {
+    throw new HttpsError('invalid-argument', 'endDate должен быть в формате YYYY-MM-DD');
+  }
+  if (!SCHEDULE_FREQUENCIES.includes(frequency)) {
+    throw new HttpsError('invalid-argument', 'frequency недопустима');
+  }
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    throw new HttpsError('invalid-argument', 'studentIds обязателен и не может быть пустым');
+  }
+}
+
+// Validates the account that OWNS the teaching data at teachers/{uid}.
+// Deliberately does NOT require role === 'teacher': Boss and Admin can teach
+// too — the dashboard's first quick-access tile ("Обучение") routes them into
+// the teacher UI at /(tabs) — so they legitimately own students, lessons and
+// schedules under their own uid. Only parents/students never can.
+async function requireTeachingAccount(db, teacherUid) {
+  if (!teacherUid) throw new HttpsError('invalid-argument', 'teacherUid обязателен');
+  const doc = await getManagedUserDoc(db, teacherUid);
+  if (doc.role === 'parent' || doc.role === 'student') {
+    throw new HttpsError('failed-precondition', 'Указанный аккаунт не может вести занятия');
+  }
+  return doc;
+}
+
+function scheduleStoreRefs(db, teacherUid) {
+  const base = db.collection('teachers').doc(teacherUid).collection('stores');
+  return { schedulesRef: base.doc('schedules'), lessonsRef: base.doc('lessons') };
+}
+
+async function readScheduleStores(schedulesRef, lessonsRef) {
+  const [schedulesSnap, lessonsSnap] = await Promise.all([schedulesRef.get(), lessonsRef.get()]);
+  return {
+    schedules: schedulesSnap.exists ? (schedulesSnap.data().data ?? []) : [],
+    lessons: lessonsSnap.exists ? (lessonsSnap.data().data ?? []) : [],
+  };
+}
+
+async function notifyTeacherScheduleChange(db, teacherUid, title, body, data) {
+  const token = await getExpoToken(db, 'teachers', teacherUid);
+  if (!token) return;
+  await sendExpoPush([{ to: token, title, body, sound: 'default', data }]);
+}
+
+// daysOfWeek: number[] — lets Admin create a Mon/Wed/Fri-style schedule in one
+// submission; each day becomes its own schedule entry + lesson batch (the
+// underlying data model is still one-day-per-schedule, matching the teacher's
+// own CreateScheduleModal.jsx), written together in a single batch.
+exports.adminCreateTeacherSchedule = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['admin']);
+  const data = request.data ?? {};
+  const { teacherUid, daysOfWeek, studentIds, studentNames, subject, time, duration, format, startDate, endDate, lessonsCount, frequency, force } = data;
+
+  await requireTeachingAccount(db, teacherUid);
+  validateScheduleFields(data);
+
+  const isParity = frequency === 'odd' || frequency === 'even';
+  const days = isParity
+    ? [null]
+    : (Array.isArray(daysOfWeek) ? daysOfWeek : [daysOfWeek]).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+  if (!isParity && days.length === 0) {
+    throw new HttpsError('invalid-argument', 'Нужно выбрать хотя бы один день недели');
+  }
+
+  const now = Date.now();
+  const newSchedules = days.map((day) => ({
+    id: `sch-${now}-${day ?? 'p'}-${Math.random().toString(36).slice(2, 6)}`,
+    studentIds, studentNames: studentNames ?? [],
+    subject, dayOfWeek: day, time, duration: Number(duration),
+    format, startDate, endDate: endDate || null,
+    lessonsCount: lessonsCount ?? null, frequency, createdAt: now,
+  }));
+
+  const newLessons = newSchedules.flatMap((s) => generateLessonsForSchedule(s));
+
+  const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
+  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
+
+  const conflicts = findScheduleConflicts(newLessons, existingLessons);
+  if (conflicts.length > 0 && !force) {
+    return {
+      conflicts: conflicts.map((c) => ({ date: c.lesson.date, time: c.lesson.time, conflictWith: c.conflictWith.subject ?? '' })),
+    };
+  }
+
+  const batch = db.batch();
+  batch.set(schedulesRef, { data: [...existingSchedules, ...newSchedules], ts: now }, { merge: false });
+  batch.set(lessonsRef, { data: [...existingLessons, ...newLessons], ts: now }, { merge: false });
+  await batch.commit();
+
+  const dayLabels = days.filter((d) => d !== null).map(scheduleDayLabel).join(', ');
+  await notifyTeacherScheduleChange(
+    db, teacherUid,
+    'Новое расписание',
+    dayLabels ? `Администратор добавил расписание: ${subject}, ${dayLabels} в ${time}` : `Администратор добавил расписание: ${subject}, ${time}`,
+    { type: 'admin_schedule_created', scheduleIds: newSchedules.map((s) => s.id) }
+  );
+
+  return { success: true, scheduleIds: newSchedules.map((s) => s.id), lessonsCreated: newLessons.length };
+});
+
+// Single-day edit (matches the teacher's own edit flow) — regenerates every
+// lesson tied to this scheduleId from scratch, same as CreateScheduleModal.jsx.
+exports.adminUpdateTeacherSchedule = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['admin']);
+  const data = request.data ?? {};
+  const { teacherUid, scheduleId, studentIds, studentNames, subject, dayOfWeek, time, duration, format, startDate, endDate, lessonsCount, frequency, force } = data;
+
+  await requireTeachingAccount(db, teacherUid);
+  if (!scheduleId) throw new HttpsError('invalid-argument', 'scheduleId обязателен');
+  validateScheduleFields(data);
+
+  const isParity = frequency === 'odd' || frequency === 'even';
+  if (!isParity && !(Number.isInteger(dayOfWeek) && dayOfWeek >= 0 && dayOfWeek <= 6)) {
+    throw new HttpsError('invalid-argument', 'dayOfWeek должен быть от 0 до 6');
+  }
+
+  const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
+  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
+
+  if (!existingSchedules.some((s) => s.id === scheduleId)) {
+    throw new HttpsError('not-found', 'Расписание не найдено');
+  }
+
+  const now = Date.now();
+  const updatedSchedule = {
+    id: scheduleId, studentIds, studentNames: studentNames ?? [],
+    subject, dayOfWeek: isParity ? null : dayOfWeek, time, duration: Number(duration),
+    format, startDate, endDate: endDate || null,
+    lessonsCount: lessonsCount ?? null, frequency, createdAt: now,
+  };
+
+  const otherLessons = existingLessons.filter((l) => l.scheduleId !== scheduleId);
+  const newLessons = generateLessonsForSchedule(updatedSchedule);
+
+  const conflicts = findScheduleConflicts(newLessons, otherLessons);
+  if (conflicts.length > 0 && !force) {
+    return {
+      conflicts: conflicts.map((c) => ({ date: c.lesson.date, time: c.lesson.time, conflictWith: c.conflictWith.subject ?? '' })),
+    };
+  }
+
+  const updatedSchedules = existingSchedules.map((s) => (s.id === scheduleId ? updatedSchedule : s));
+
+  const batch = db.batch();
+  batch.set(schedulesRef, { data: updatedSchedules, ts: now }, { merge: false });
+  batch.set(lessonsRef, { data: [...otherLessons, ...newLessons], ts: now }, { merge: false });
+  await batch.commit();
+
+  await notifyTeacherScheduleChange(
+    db, teacherUid,
+    'Расписание изменено',
+    `Администратор изменил расписание: ${subject}, ${scheduleDayLabel(dayOfWeek)} в ${time}`.trim(),
+    { type: 'admin_schedule_updated', scheduleId }
+  );
+
+  return { success: true, lessonsCreated: newLessons.length };
+});
+
+exports.adminDeleteTeacherSchedule = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['admin']);
+  const { teacherUid, scheduleId } = request.data ?? {};
+  await requireTeachingAccount(db, teacherUid);
+  if (!scheduleId) throw new HttpsError('invalid-argument', 'scheduleId обязателен');
+
+  const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
+  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
+
+  const target = existingSchedules.find((s) => s.id === scheduleId);
+  if (!target) throw new HttpsError('not-found', 'Расписание не найдено');
+
+  const filteredSchedules = existingSchedules.filter((s) => s.id !== scheduleId);
+  const filteredLessons = existingLessons.filter((l) => l.scheduleId !== scheduleId);
+
+  const batch = db.batch();
+  batch.set(schedulesRef, { data: filteredSchedules, ts: Date.now() }, { merge: false });
+  batch.set(lessonsRef, { data: filteredLessons, ts: Date.now() }, { merge: false });
+  await batch.commit();
+
+  await notifyTeacherScheduleChange(
+    db, teacherUid,
+    'Расписание удалено',
+    `Администратор удалил расписание: ${target.subject ?? ''}`.trim(),
+    { type: 'admin_schedule_deleted', scheduleId }
+  );
+
+  return { success: true };
+});
+
+// ─── Org-wide schedule (Boss/Admin) ────────────────────────────────────────
+// Powers the Admin "Расписание" tab: every teacher's lessons for one
+// calendar date, merged into a single chronological feed. Same read-every-
+// teacher's-whole-lessons-array cost profile as getTeacherWorkload/
+// getFinanceOverview elsewhere in this file — consistent with this app's
+// accepted lessons/schedules architecture (unlike `reports`, which was
+// migrated to a subcollection specifically because it didn't scale this way).
+exports.getOrgSchedule = onCall({ invoker: 'public' }, async (request) => {
+  const { db } = await requireStaffCaller(request, ['boss', 'admin']);
+  const { date } = request.data ?? {};
+  if (!SCHEDULE_DATE_RE.test(date ?? '')) {
+    throw new HttpsError('invalid-argument', 'date обязателен (YYYY-MM-DD)');
+  }
+
+  const teachersSnap = await db.collection('teachers').get();
+  const teacherNames = buildTeacherNameMap(teachersSnap);
+
+  const perTeacher = await Promise.all(
+    teachersSnap.docs.map(async (d) => {
+      const teacherUid = d.id;
+      const snap = await db.collection('teachers').doc(teacherUid).collection('stores').doc('lessons').get();
+      const lessons = snap.exists ? (snap.data().data ?? []) : [];
+      const dayLessons = lessons.filter((l) => l.date === date);
+      return { teacherUid, teacherName: teacherNames[teacherUid], lessons: dayLessons };
+    })
+  );
+
+  const events = perTeacher
+    .flatMap(({ teacherUid, teacherName, lessons }) =>
+      lessons.map((l) => ({ ...l, teacherUid, teacherName }))
+    )
+    .sort((a, b) => (a.time ?? '').localeCompare(b.time ?? ''));
+
+  // Every teacher is kept (even with 0 lessons that day) so the filter row
+  // on the client stays stable as the selected date changes.
+  const teachers = perTeacher.map(({ teacherUid, teacherName, lessons }) => ({
+    teacherUid, teacherName, count: lessons.length,
+  }));
+
+  return { date, events, teachers };
 });

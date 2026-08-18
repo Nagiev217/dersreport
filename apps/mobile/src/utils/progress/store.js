@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createEncryptedStorage } from "@/utils/storage/secureStorage";
 
 // Fixed timestamp base to avoid Date.now() in module scope (resume caching)
 const T = 1749980000000;
@@ -113,7 +113,7 @@ export const useProgressStore = create(
     }),
     {
       name: "progress-storage-v2",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(createEncryptedStorage),
     }
   )
 );

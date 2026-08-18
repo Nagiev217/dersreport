@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createEncryptedStorage } from "@/utils/storage/secureStorage";
 
 const pad = (n) => String(n).padStart(2, "0");
 function dateStr(offsetDays = 0) {
@@ -144,34 +144,53 @@ function sortByDate(a, b) {
   return b.createdAt - a.createdAt;
 }
 
+// Reports sync per-document to a Firestore subcollection rather than through
+// the generic whole-array store sync (see utils/reports/firestoreSync.js for
+// why). The store stays Firebase-agnostic like every other store — the sync
+// engine in app/_layout.jsx installs the real adapter once a uid is known.
+const NOOP_ADAPTER = { add() {}, update() {}, remove() {} };
+let remoteAdapter = NOOP_ADAPTER;
+
+export function setReportsRemoteAdapter(adapter) {
+  remoteAdapter = adapter ?? NOOP_ADAPTER;
+}
+
 export const useReportsStore = create(
   persist(
     (set) => ({
       reports: [],
 
-      addReport: (report) =>
+      addReport: (report) => {
         set((state) => ({
           reports: [report, ...state.reports],
-        })),
+        }));
+        remoteAdapter.add(report);
+      },
 
-      updateReport: (id, updates) =>
+      updateReport: (id, updates) => {
         set((state) => ({
           reports: state.reports.map((r) =>
             r.id === id ? { ...r, ...updates } : r
           ),
-        })),
+        }));
+        remoteAdapter.update(id, updates);
+      },
 
-      deleteReport: (id) =>
+      deleteReport: (id) => {
         set((state) => ({
           reports: state.reports.filter((r) => r.id !== id),
-        })),
+        }));
+        remoteAdapter.remove(id);
+      },
 
-      markAsRead: (id) =>
+      markAsRead: (id) => {
         set((state) => ({
           reports: state.reports.map((r) =>
             r.id === id ? { ...r, isRead: true } : r
           ),
-        })),
+        }));
+        remoteAdapter.update(id, { isRead: true });
+      },
 
       // Get all reports for a specific student
       getReportsByStudent: (studentId) =>
@@ -179,7 +198,7 @@ export const useReportsStore = create(
     }),
     {
       name: "reports-storage-v2",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(createEncryptedStorage),
     }
   )
 );

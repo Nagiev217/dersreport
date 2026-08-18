@@ -162,7 +162,7 @@ function ChildCard({ student, lessons, onPress, t, tSubject, tName, locale }) {
 
 // ─── Report row ───────────────────────────────────────────────────────────────
 
-function ReportRow({ report, isNew, onPress, tSubject }) {
+export function ReportRow({ report, isNew, onPress, tSubject }) {
   const scoreColors = {
     5: "#22C55E", 4: "#3B82F6", 3: "#F59E0B", 2: "#F97316", 1: "#EF4444",
   };

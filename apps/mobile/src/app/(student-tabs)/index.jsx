@@ -6,7 +6,7 @@ import Svg, { Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
-  BookOpen, Calendar, FileText, Bell, Shield, LogOut, ChevronRight, Trophy,
+  BookOpen, Calendar, FileText, Bell, Shield, LogOut, ChevronRight, Trophy, FileCheck2, Sparkles,
 } from "lucide-react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "@/utils/firebase/config";
@@ -57,7 +57,7 @@ export default function StudentDashboard() {
   const { t, tSubject, tName, months } = useT();
   const monthsShort = months(true);
 
-  const { student, reports, lessons, loading } = useStudentData();
+  const { student, reports, lessons, assignedExams, loading } = useStudentData();
   const displayName = auth?.currentUser?.displayName ?? t("roleStudentTitle");
 
   const handleSignOut = () => {
@@ -148,6 +148,27 @@ export default function StudentDashboard() {
         </View>
       </LinearGradient>
 
+      {/* AI Essay Check — self-serve, available even before linking a teacher */}
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => router.push("/essay-check")}
+        style={{ marginHorizontal: 20, marginBottom: 16, borderRadius: 20, overflow: "hidden" }}
+      >
+        <LinearGradient
+          colors={["#6366F1", "#4F46E5"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 18 }}
+        >
+          <View style={{ width: 46, height: 46, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" }}>
+            <Sparkles size={22} color="#FFFFFF" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{t("essayCheckTitle")}</Text>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.82)", marginTop: 2 }}>{t("essayCheckCardHint")}</Text>
+          </View>
+          <ChevronRight size={20} color="rgba(255,255,255,0.9)" />
+        </LinearGradient>
+      </TouchableOpacity>
+
       {/* Empty state — not linked to any teacher yet */}
       {!student && (
         <View style={{ margin: 20, backgroundColor: "#FFFFFF", borderRadius: 20, padding: 32, alignItems: "center" }}>
@@ -200,6 +221,31 @@ export default function StudentDashboard() {
               </Text>
               <CircleProgress size={56} progress={attend} color={attendColor} strokeWidth={5} />
             </View>
+          </View>
+        </View>
+      )}
+
+      {/* Assigned exams */}
+      {assignedExams.length > 0 && (
+        <View style={{ marginHorizontal: 20, marginBottom: 16 }}>
+          <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 8 }}>{t("studentAssignedExams")}</Text>
+          <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, overflow: "hidden", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 10, elevation: 2 }}>
+            {assignedExams.map((a, i) => {
+              const secCol = { listening: "#2563EB", reading: "#22C55E", writing: "#8B5CF6", speaking: "#F59E0B" }[a.section] ?? "#4F46E5";
+              return (
+                <View key={a.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderTopWidth: i > 0 ? 0.5 : 0, borderTopColor: "#F2F2F7" }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: secCol + "22", alignItems: "center", justifyContent: "center" }}>
+                    <FileCheck2 size={18} color={secCol} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }}>{a.examTitle}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 1 }}>
+                      {t(`examSection_${a.section}`)} · {a.questionCount} {t("examQuestionsShort")} · {t("hwDueLabel")}: {a.dueDate}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         </View>
       )}

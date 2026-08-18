@@ -26,6 +26,7 @@ import { auth } from "../../utils/firebase/config";
 import { getParentProfile, getParentAccess } from "../../utils/firebase/roles";
 import { clearCachedRole } from "../../utils/auth/roleCache";
 import { useT } from "../../utils/i18n";
+import DevAccountSwitcher from "@/components/DevAccountSwitcher";
 
 // Minimal QR display using SVG-like grid (no external package)
 function QRDisplay({ value }) {
@@ -353,6 +354,7 @@ export default function ParentProfile() {
         </Text>
       </TouchableOpacity>
 
+      <DevAccountSwitcher currentRole="parent" />
     </ScrollView>
   );
 }

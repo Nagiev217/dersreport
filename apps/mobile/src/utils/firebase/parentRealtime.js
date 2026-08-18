@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import { onSnapshot, doc } from "firebase/firestore";
+import { onSnapshot, doc, collection, query, where } from "firebase/firestore";
 import { db, IS_FIREBASE_READY } from "./config";
 import { auth } from "./config";
 import { getParentAccess } from "./roles";
@@ -64,6 +64,38 @@ export function ParentDataProvider({ children }) {
       subs.current.push(unsub);
     }
 
+    // Reports live in a per-document subcollection, so we query only this
+    // parent's children instead of pulling the teacher's whole array down
+    // and filtering it here. Security rules enforce the same scoping.
+    function subscribeReports(teacherUid, studentIds) {
+      // Firestore caps 'in' at 30 values; a parent's children under a single
+      // teacher will never come close.
+      const ids = studentIds.map(String).slice(0, 30);
+      if (ids.length === 0) {
+        data.current.reports[teacherUid] = [];
+        return;
+      }
+      const q = query(
+        collection(db, "teachers", teacherUid, "reports"),
+        where("studentId", "in", ids)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => {
+          data.current.reports[teacherUid] = snap.docs.map((d) => d.data());
+          merge();
+        },
+        (err) => {
+          // Was silently swallowed before — surface it so a rules/linkage
+          // mismatch shows up in the console instead of just "no data".
+          console.error(`[parentRealtime] reports query failed for teacher ${teacherUid} (studentIds: ${ids.join(",")}):`, err?.code, err?.message);
+          data.current.reports[teacherUid] = [];
+          merge();
+        }
+      );
+      subs.current.push(unsub);
+    }
+
     (async () => {
       const links = await getParentAccess(uid);
       if (!mounted) return;
@@ -75,7 +107,7 @@ export function ParentDataProvider({ children }) {
 
       links.forEach(({ teacherUid, studentIds }) => {
         data.current.allowed[teacherUid] = new Set(studentIds.map(String));
-        subscribe(teacherUid, "reports",  "reports");
+        subscribeReports(teacherUid, studentIds);
         subscribe(teacherUid, "students", "students");
         subscribe(teacherUid, "lessons",  "lessons");
       });

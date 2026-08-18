@@ -114,7 +114,7 @@ export async function updateParentProfile(uid, data) {
 
 export async function saveFcmToken(uid, role, token) {
   if (!IS_FIREBASE_READY || !db || !token) return;
-  const coll = role === 'teacher' ? 'teachers' : 'parents';
+  const coll = role === 'teacher' ? 'teachers' : role === 'student' ? 'students' : 'parents';
   try {
     await setDoc(doc(db, coll, uid), { fcmToken: token, updatedAt: Date.now() }, { merge: true });
   } catch {}

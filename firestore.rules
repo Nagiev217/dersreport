@@ -11,11 +11,43 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    // Only a teacher account can look up a parent/student invite code — this
+    // exists to narrow the (already low-probability) code-enumeration surface
+    // down from "any signed-in account" to "accounts Boss vetted as teachers".
+    function isTeacherCaller() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    // Per-record access for the reports subcollection. Unlike the whole-array
+    // stores (where a linked parent/student can read the entire document and
+    // filtering happens client-side), these check the specific record's
+    // studentId against the caller's linkage doc.
+    function isLinkedParentForStudent(teacherUid, studentId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid))
+        && studentId in get(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid)).data.studentIds;
+    }
+
+    function isLinkedStudentForStudent(teacherUid, studentId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/studentAccess/$(request.auth.uid)/teachers/$(teacherUid))
+        && get(/databases/$(database)/documents/studentAccess/$(request.auth.uid)/teachers/$(teacherUid)).data.studentId == studentId;
+    }
+
     // ── Account/profile docs — always self-only ──────────────────────────
     // Boss/Admin cross-teacher access never goes through these client rules —
     // it goes through Cloud Functions (Admin SDK, bypasses rules entirely).
+    // `role` and `disabled` are the server's authority for access control
+    // (requireStaffCaller reads users/{uid}.role). Account docs are created
+    // by Cloud Functions via the Admin SDK, which bypasses these rules — so
+    // clients may update their own profile fields but must never escalate
+    // their own role or lift their own ban. Client create is denied (default).
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read: if isOwner(uid);
+      allow update: if isOwner(uid)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.get('disabled', false) == resource.data.get('disabled', false);
     }
 
     match /parents/{uid} {
@@ -43,22 +75,39 @@ service cloud.firestore {
           || (isSignedIn() && exists(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid)))
           || (isSignedIn() && storeName != 'payments'
               && exists(/databases/$(database)/documents/studentAccess/$(request.auth.uid)/teachers/$(teacherUid)));
+        // Reports moved to the subcollection below; the old whole-array doc is
+        // frozen (readable for rollback, never written again).
+        allow write: if isOwner(teacherUid) && storeName != 'reports';
+      }
+
+      // Reports: one document per report, so a teacher's lifetime history is
+      // never bounded by Firestore's 1MB per-document limit. Parents and
+      // students read only records belonging to their own linked child, and
+      // must scope their queries accordingly (where('studentId', ...)) — an
+      // unscoped query is rejected, not silently filtered.
+      match /reports/{reportId} {
+        allow read: if isOwner(teacherUid)
+          || isLinkedParentForStudent(teacherUid, resource.data.studentId)
+          || isLinkedStudentForStudent(teacherUid, resource.data.studentId);
         allow write: if isOwner(teacherUid);
       }
     }
 
     // ── Parent code lookup (teacher enters a parent's code to link them) ──
+    // Codes are immutable once created — no client path ever needs to
+    // update one, and allowing it let the owner repoint `uid` to redirect
+    // anyone who later enters the code to a different account.
     match /parentCodes/{code} {
-      allow read: if isSignedIn();
+      allow read: if isTeacherCaller() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     // ── Student code lookup (teacher enters a student's code to link them) ──
     match /studentCodes/{code} {
-      allow read: if isSignedIn();
+      allow read: if isTeacherCaller() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     // ── Parent <-> teacher linkage ──────────────────────────────────────────

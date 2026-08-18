@@ -3,12 +3,12 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "expo-router";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   BookOpen,
   Clock,
@@ -21,20 +21,14 @@ import {
   Plus,
   Timer,
   Archive,
-  Banknote,
-  CreditCard,
-  Smartphone,
-  TrendingUp,
-  Trash2,
   ChevronRight,
   CheckCircle2,
   Ban,
 } from "lucide-react-native";
 import SearchBar from "@/components/SearchBar";
 import FilterChips from "@/components/FilterChips";
+import PressableScale from "@/components/PressableScale";
 import { useLessonsStore } from "@/utils/lessons/store";
-import { usePaymentsStore } from "@/utils/payments/store";
-import AddPaymentModal from "@/components/AddPaymentModal";
 import { useT, useDateLocale } from "@/utils/i18n";
 import {
   formatDateShort,
@@ -44,23 +38,22 @@ import {
   isTomorrow,
 } from "@/utils/dateUtils";
 
-// ─── Palette ──────────────────────────────────────────────────────────────────
-const NAVY_GRAD = ["#22447A", "#152C51"];
-const SHEET = "#F4F5F7";
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
 const TEXT  = "#111827";
 const SUB   = "#8E93A1";
-const BLUE  = "#2563EB";
+const BORDER = "#E5E9F2";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Filter keys (translated inside component)
-const ARCHIVE_FILTER_KEYS = ["all", "done", "cancelled"];
-
 const SUBJECT_CONFIG = {
-  IELTS:      { Icon: BookOpen,     color: "#6B5CF6", bg: "#EEF0FF" },
-  SAT:        { Icon: Hash,         color: "#3B82F6", bg: "#EFF6FF" },
-  General:    { Icon: Globe,        color: "#10B981", bg: "#ECFDF5" },
-  Английский: { Icon: GraduationCap, color: "#F59E0B", bg: "#FFFBEB" },
+  IELTS:      { Icon: BookOpen,      color: INDIGO,     bg: INDIGO_50 },
+  SAT:        { Icon: Hash,          color: BLUE,       bg: BLUE_50 },
+  General:    { Icon: Globe,         color: "#22C55E",  bg: "#ECFDF5" },
+  Английский: { Icon: GraduationCap, color: "#D97706",  bg: "#FFFBEB" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -114,9 +107,15 @@ function getCurrentWeek() {
   });
 }
 
+const STATUS_CFG_BASE = {
+  planned:   { color: INDIGO,     bg: INDIGO_50 },
+  completed: { color: "#22C55E",  bg: "#ECFDF5" },
+  cancelled: { color: "#EF4444",  bg: "#FEF2F2" },
+};
+
 // ─── DateGroupCard — timeline list for one date, continuous connector line ─────
 
-function DateGroupCard({ dateLabel, lessons, onOpen }) {
+function DateGroupCard({ dateLabel, lessons, onOpen, delay }) {
   const { t, tSubject, tName, tNameList } = useT();
   const [rowLayouts, setRowLayouts] = useState({});
   const handleRowLayout = useCallback((i, e) => {
@@ -138,25 +137,25 @@ function DateGroupCard({ dateLabel, lessons, onOpen }) {
   }, [rowLayouts, lessons.length]);
 
   const STATUS_CFG = {
-    planned:   { label: t("statusPlanned"),   color: "#6B5CF6", bg: "#EEF0FF" },
-    completed: { label: t("statusCompleted"), color: "#22C55E", bg: "#F0FDF4" },
-    cancelled: { label: t("statusCancelled"), color: "#EF4444", bg: "#FEF2F2" },
+    planned:   { label: t("statusPlanned"),   ...STATUS_CFG_BASE.planned },
+    completed: { label: t("statusCompleted"), ...STATUS_CFG_BASE.completed },
+    cancelled: { label: t("statusCancelled"), ...STATUS_CFG_BASE.cancelled },
   };
 
   return (
-    <View style={{ marginBottom: 18 }}>
+    <Animated.View entering={FadeInDown.delay(delay).duration(320)} style={{ marginBottom: 18 }}>
       <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 10 }}>
         {dateLabel}
       </Text>
       <View style={{
         backgroundColor: "#FFFFFF", borderRadius: 18, paddingHorizontal: 14, position: "relative",
-        shadowColor: "#0B1B3A", shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+        borderWidth: 1, borderColor: BORDER,
       }}>
         {/* single continuous timeline line — drawn first (bottom layer) so dots sit on top */}
         {geometry && (
           <View
             pointerEvents="none"
-            style={{ position: "absolute", left: 73, top: geometry.top, height: geometry.height, width: 2, backgroundColor: "#D5D9E0" }}
+            style={{ position: "absolute", left: 73, top: geometry.top, height: geometry.height, width: 2, backgroundColor: "#E5E9F2" }}
           />
         )}
 
@@ -177,7 +176,7 @@ function DateGroupCard({ dateLabel, lessons, onOpen }) {
                 flexDirection: "row", alignItems: "center", gap: 10,
                 paddingVertical: 13,
                 borderBottomWidth: isLast ? 0 : 1,
-                borderBottomColor: "#EEF0F3",
+                borderBottomColor: "#F1F5F9",
               }}
             >
               {/* time */}
@@ -212,7 +211,7 @@ function DateGroupCard({ dateLabel, lessons, onOpen }) {
           );
         })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -222,9 +221,9 @@ const LessonCard = ({ lesson, onPress, dimmed }) => {
   const { t, tSubject, tName } = useT();
   const locale = useDateLocale();
   const STATUS_CFG = {
-    planned:   { label: t("statusPlanned"),   color: "#6B5CF6", bg: "#EEF0FF" },
-    completed: { label: t("statusCompleted"), color: "#22C55E", bg: "#F0FDF4" },
-    cancelled: { label: t("statusCancelled"), color: "#EF4444", bg: "#FEF2F2" },
+    planned:   { label: t("statusPlanned"),   ...STATUS_CFG_BASE.planned },
+    completed: { label: t("statusCompleted"), ...STATUS_CFG_BASE.completed },
+    cancelled: { label: t("statusCancelled"), ...STATUS_CFG_BASE.cancelled },
   };
   const subjectCfg = SUBJECT_CONFIG[lesson.subject] || SUBJECT_CONFIG.Английский;
   const statusCfg  = STATUS_CFG[lesson.status] || STATUS_CFG.planned;
@@ -235,19 +234,16 @@ const LessonCard = ({ lesson, onPress, dimmed }) => {
     : tName(lesson.student ?? "—");
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
+    <PressableScale
       onPress={onPress}
+      scaleTo={0.985}
       style={{
         backgroundColor: "#FFFFFF",
         borderRadius: 16,
         padding: 16,
-        opacity: dimmed ? 0.72 : 1,
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 2,
+        opacity: dimmed ? 0.75 : 1,
+        borderWidth: 1,
+        borderColor: BORDER,
       }}
     >
       {/* Row 1: subject + status */}
@@ -256,7 +252,7 @@ const LessonCard = ({ lesson, onPress, dimmed }) => {
           <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: subjectCfg.bg, alignItems: "center", justifyContent: "center" }}>
             <SubjectIcon size={18} color={subjectCfg.color} />
           </View>
-          <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>
+          <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>
             {tSubject(lesson.subject)}
           </Text>
         </View>
@@ -275,29 +271,29 @@ const LessonCard = ({ lesson, onPress, dimmed }) => {
       {/* Row 3: time · duration · format */}
       <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Clock size={13} color="#8E8E93" />
-          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{lesson.time}</Text>
+          <Clock size={13} color={SUB} />
+          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB }}>{lesson.time}</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Timer size={13} color="#8E8E93" />
-          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{lesson.duration} {t("min_abbr")}</Text>
+          <Timer size={13} color={SUB} />
+          <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB }}>{lesson.duration} {t("min_abbr")}</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Video size={13} color="#6B5CF6" />
-          <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B5CF6" }}>{lesson.format === "Офлайн" ? t("offline") : t("online")}</Text>
+          <Video size={13} color={INDIGO} />
+          <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: INDIGO }}>{lesson.format === "Офлайн" ? t("offline") : t("online")}</Text>
         </View>
       </View>
 
       {/* Row 4: date */}
       {lesson.date && (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: "#F2F2F7" }}>
-          <Calendar size={12} color="#8E8E93" />
-          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F1F5F9" }}>
+          <Calendar size={12} color={SUB} />
+          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
             {formatDateShort(lesson.date, locale)}
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </PressableScale>
   );
 };
 
@@ -307,19 +303,21 @@ const EmptyActive = ({ onAdd }) => {
   const { t } = useT();
   return (
     <View style={{ alignItems: "center", paddingTop: 48, paddingHorizontal: 32 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-        <BookOpen size={32} color="#6B5CF6" />
+      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: INDIGO_50, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+        <BookOpen size={32} color={INDIGO} />
       </View>
-      <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 6, textAlign: "center" }}>
+      <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 6, textAlign: "center" }}>
         {t("lessonsEmptyTitle")}
       </Text>
-      <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center", lineHeight: 20, marginBottom: 24 }}>
+      <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 20, marginBottom: 24 }}>
         {t("lessonsEmptyDefault")}
       </Text>
-      <TouchableOpacity activeOpacity={0.85} onPress={onAdd} style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: "#6B5CF6", borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Plus size={16} color="#FFFFFF" />
-        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("lessonsAddBtn")}</Text>
-      </TouchableOpacity>
+      <PressableScale onPress={onAdd} scaleTo={0.96} style={{ borderRadius: 14, overflow: "hidden" }}>
+        <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ paddingHorizontal: 24, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Plus size={16} color="#FFFFFF" />
+          <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("lessonsAddBtn")}</Text>
+        </LinearGradient>
+      </PressableScale>
     </View>
   );
 };
@@ -328,112 +326,15 @@ const EmptyArchive = () => {
   const { t } = useT();
   return (
     <View style={{ alignItems: "center", paddingTop: 48, paddingHorizontal: 32 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-        <Archive size={32} color="#8E8E93" />
+      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: "#F1F5F9", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+        <Archive size={32} color={SUB} />
       </View>
-      <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 6, textAlign: "center" }}>
+      <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 6, textAlign: "center" }}>
         {t("lessonsArchiveEmpty")}
       </Text>
-      <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center", lineHeight: 20 }}>
+      <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 20 }}>
         {t("lessonsArchiveEmptyHint")}
       </Text>
-    </View>
-  );
-};
-
-// ─── PaymentCard ──────────────────────────────────────────────────────────────
-
-const PaymentCard = ({ payment, onDelete }) => {
-  const METHOD_CFG = {
-    cash:     { Icon: Banknote,   color: "#22C55E", bg: "#F0FDF4" },
-    card:     { Icon: CreditCard, color: "#3B82F6", bg: "#EFF6FF" },
-    transfer: { Icon: Smartphone, color: "#8B5CF6", bg: "#F5F3FF" },
-  };
-  const METHOD_LABELS = { cash: "addPayCash", card: "addPayCard", transfer: "addPayTransfer" };
-  const cfg = METHOD_CFG[payment.method] ?? METHOD_CFG.cash;
-  const MethodIcon = cfg.Icon;
-
-  const { t, tName } = useT();
-  const displayName = tName(payment.studentName ?? "?");
-
-  const initials = displayName
-    .split(" ")
-    .map(w => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  function confirmDelete() {
-    Alert.alert(t("addPayDeleteTitle"), t("addPayDeleteMsg"), [
-      { text: t("cancel"), style: "cancel" },
-      { text: t("delete"), style: "destructive", onPress: () => onDelete(payment.id) },
-    ]);
-  }
-
-  return (
-    <View style={{ backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14,
-      shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
-      flexDirection: "row", alignItems: "center", gap: 12 }}>
-      {/* Avatar */}
-      <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "#EEF0FF",
-        alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#6B5CF6" }}>{initials}</Text>
-      </View>
-
-      {/* Info */}
-      <View style={{ flex: 1, gap: 3 }}>
-        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }} numberOfLines={1}>
-          {displayName}
-        </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4,
-            paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: cfg.bg }}>
-            <MethodIcon size={11} color={cfg.color} />
-            <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: cfg.color }}>
-              {t(METHOD_LABELS[payment.method] ?? "addPayCash")}
-            </Text>
-          </View>
-          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
-            {payment.date}
-          </Text>
-        </View>
-        {payment.note ? (
-          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }} numberOfLines={1}>
-            {payment.note}
-          </Text>
-        ) : null}
-      </View>
-
-      {/* Amount + delete */}
-      <View style={{ alignItems: "flex-end", gap: 8 }}>
-        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#22C55E" }}>
-          +{payment.amount} ₼
-        </Text>
-        <TouchableOpacity activeOpacity={0.7} onPress={confirmDelete}>
-          <Trash2 size={14} color="#C7C7CC" />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
-const EmptyPayments = ({ onAdd }) => {
-  const { t } = useT();
-  return (
-    <View style={{ alignItems: "center", paddingTop: 48, paddingHorizontal: 32 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: "#ECFDF5", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-        <Banknote size={32} color="#22C55E" />
-      </View>
-      <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 6, textAlign: "center" }}>
-        {t("paymentsEmptyTitle")}
-      </Text>
-      <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center", lineHeight: 20, marginBottom: 24 }}>
-        {t("paymentsEmptyHint")}
-      </Text>
-      <TouchableOpacity activeOpacity={0.85} onPress={onAdd} style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: "#22C55E", borderRadius: 14, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Plus size={16} color="#FFFFFF" />
-        <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("paymentsAddBtn")}</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -446,10 +347,9 @@ export default function LessonsScreen() {
 
   const { t, tp, days } = useT();
 
-  const [tab,          setTab]          = useState("active"); // "active" | "archive" | "payments"
+  const [tab,          setTab]          = useState("active"); // "active" | "archive"
   const [search,       setSearch]       = useState("");
   const [filter,       setFilter]       = useState(null); // archive filter chips
-  const [showAddPay,   setShowAddPay]   = useState(false);
   const [selectedDate, setSelectedDate] = useState(todayStr());
 
   const ARCHIVE_FILTERS = [t("all"), t("lessonsFilterDone"), t("lessonsFilterCancelled")];
@@ -459,7 +359,6 @@ export default function LessonsScreen() {
   const activeFilter     = filter ?? filterAll;
 
   const { lessons } = useLessonsStore();
-  const { payments, deletePayment } = usePaymentsStore();
 
   const now      = new Date();
   const today    = todayStr();
@@ -508,24 +407,6 @@ export default function LessonsScreen() {
     return list;
   }, [archived, activeFilter, search, filterDone, filterCancelled]);
 
-  // Payment stats
-  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const { thisMonthTotal, allTimeTotal, filteredPayments } = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = payments
-      .slice()
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const filtered = q
-      ? list.filter(p => (p.studentName ?? "").toLowerCase().includes(q))
-      : list;
-    const thisMonth = list.filter(p => p.period === currentPeriod);
-    return {
-      thisMonthTotal:   thisMonth.reduce((s, p) => s + (p.amount ?? 0), 0),
-      allTimeTotal:     list.reduce((s, p) => s + (p.amount ?? 0), 0),
-      filteredPayments: filtered,
-    };
-  }, [payments, search, currentPeriod]);
-
   // Global lesson stats (footer bar on schedule tab)
   const totalCount     = lessons.length;
   const completedCount = useMemo(() => lessons.filter(l => l.status === "completed").length, [lessons]);
@@ -535,124 +416,128 @@ export default function LessonsScreen() {
   const handleAdd  = () => router.push("/lesson/add");
   const handleOpen = (id) => router.push(`/lesson/${id}`);
 
-  function handlePlusPress() {
-    if (tab === "payments") setShowAddPay(true);
-    else handleAdd();
-  }
-
   const TABS = [
     { id: "active",   label: t("lessonsTabActive") },
     { id: "archive",  label: t("lessonsTabArchive") },
-    { id: "payments", label: t("lessonsTabPayments") },
   ];
 
   return (
-    <View style={{ flex: 1, backgroundColor: SHEET }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Fills the top overscroll/bounce gap with navy instead of the sheet's white */}
-        <View style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: NAVY_GRAD[0] }} />
-
-        {/* ══ NAVY HEADER ══════════════════════════════════════════════ */}
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
         <LinearGradient
-          colors={NAVY_GRAD}
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.6, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.4, y: 1 }}
-          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 18 }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
         >
           {/* logo row */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
-              <GraduationCap size={19} color="#FFFFFF" strokeWidth={2} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+              <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
             </View>
             <View>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3, lineHeight: 19 }}>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>
                 Jeff
               </Text>
-              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", letterSpacing: 0.3 }}>
+              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>
                 Colleges
               </Text>
             </View>
           </View>
 
           {/* title + buttons */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.5 }}>
+          <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 }}>
               {t("lessonsTitle")}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
+              <PressableScale
                 onPress={() => setSelectedDate(today)}
-                activeOpacity={0.75}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.12)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}
+                scaleTo={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={t("today")}
+                style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
               >
-                <CalendarDays size={17} color="#FFFFFF" strokeWidth={2} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handlePlusPress}
-                activeOpacity={0.8}
-                style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}
+                <CalendarDays size={17} color={BLUE} strokeWidth={2} />
+              </PressableScale>
+              <PressableScale
+                onPress={handleAdd}
+                scaleTo={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={t("lessonsAddBtn")}
+                style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}
               >
-                <Plus size={20} color={NAVY_GRAD[1]} strokeWidth={2.5} />
-              </TouchableOpacity>
+                <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
+              </PressableScale>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* tab toggle — dark pill container, white active segment */}
-          <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 15, padding: 4 }}>
+          {/* tab toggle — segmented control */}
+          <View style={{ flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 14, padding: 4, borderWidth: 1, borderColor: BORDER }}>
             {TABS.map(({ id, label }) => {
               const active = tab === id;
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={id}
                   onPress={() => switchTab(id)}
-                  activeOpacity={0.8}
+                  scaleTo={0.97}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: active }}
                   style={{
-                    flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: "center",
-                    backgroundColor: active ? "#FFFFFF" : "transparent",
+                    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center",
+                    backgroundColor: active ? BLUE : "transparent",
                   }}
                 >
-                  <Text style={{ fontSize: 13.5, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium", color: active ? NAVY_GRAD[1] : "#FFFFFF" }}>
+                  <Text style={{ fontSize: 13.5, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium", color: active ? "#FFFFFF" : SUB }}>
                     {label}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>
 
           {/* week day strip — schedule tab only */}
           {tab === "active" && (
-            <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", paddingVertical: 14, paddingHorizontal: 4, marginTop: 16 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "#FFFFFF", borderRadius: 16, borderWidth: 1, borderColor: BORDER, paddingVertical: 12, paddingHorizontal: 4, marginTop: 14 }}>
               {weekDates.map((d) => {
                 const ds = toDateStr(d);
                 const selected = ds === selectedDate;
                 return (
-                  <TouchableOpacity
+                  <PressableScale
                     key={ds}
                     onPress={() => setSelectedDate(ds)}
-                    activeOpacity={0.75}
+                    scaleTo={0.9}
+                    accessibilityRole="button"
+                    accessibilityLabel={ds}
+                    accessibilityState={{ selected }}
                     style={{ alignItems: "center", width: 34 }}
                   >
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.6)", marginBottom: 8 }}>
+                    <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: SUB, marginBottom: 8 }}>
                       {daysShort[(d.getDay() + 6) % 7]}
                     </Text>
-                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: selected ? "#FFFFFF" : "transparent", alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: selected ? NAVY_GRAD[1] : "#FFFFFF" }}>
+                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: selected ? BLUE : "transparent", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: selected ? "#FFFFFF" : TEXT }}>
                         {d.getDate()}
                       </Text>
                     </View>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
           )}
         </LinearGradient>
 
-        {/* ══ WHITE SHEET ══════════════════════════════════════════════ */}
-        <View style={{ flex: 1, backgroundColor: SHEET, borderTopLeftRadius: 26, borderTopRightRadius: 26, marginTop: -14, paddingTop: 20, paddingBottom: insets.bottom + 24 }}>
+        {/* ── SECTION 2 — Content (white) ── */}
+        <View style={{ paddingTop: 22 }}>
 
           {/* ── Schedule (active) tab ─────────────────────────────────── */}
           {tab === "active" && (
@@ -660,32 +545,32 @@ export default function LessonsScreen() {
               {scheduleGroups.length === 0 ? (
                 <EmptyActive onAdd={handleAdd} />
               ) : (
-                scheduleGroups.map(({ date, lessons: dayLessons }) => (
+                scheduleGroups.map(({ date, lessons: dayLessons }, gi) => (
                   <DateGroupCard
                     key={date}
                     dateLabel={groupDateLabel(date, t, monthsFull)}
                     lessons={dayLessons}
                     onOpen={handleOpen}
+                    delay={gi * 40}
                   />
                 ))
               )}
 
               {/* stats footer bar */}
               {lessons.length > 0 && (
-                <View style={{
-                  flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 16, padding: 14, marginTop: 4, marginBottom: 8,
-                  shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2,
-                }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 4, marginBottom: 8 }}>
                   {[
-                    { Icon: CalendarDays, value: totalCount,     label: t("lessonsStatTotal"),     color: BLUE },
-                    { Icon: CheckCircle2, value: completedCount, label: t("lessonsStatCompleted"), color: "#22C55E" },
-                    { Icon: Clock,        value: plannedCount,   label: t("lessonsStatPlanned"),   color: "#F59E0B" },
-                    { Icon: Ban,          value: cancelledCount, label: t("lessonsStatCancelled"), color: SUB },
-                  ].map(({ Icon, value, label, color }, i) => (
-                    <View key={i} style={{ flex: 1, alignItems: "center", borderLeftWidth: i === 0 ? 0 : 1, borderLeftColor: "#EEF0F3" }}>
-                      <Icon size={18} color={color} strokeWidth={2} />
-                      <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginTop: 6 }}>{value}</Text>
-                      <Text style={{ fontSize: 10, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", marginTop: 2 }}>{label}</Text>
+                    { Icon: CalendarDays, value: totalCount,     label: t("lessonsStatTotal"),     color: BLUE,      bg: BLUE_50 },
+                    { Icon: CheckCircle2, value: completedCount, label: t("lessonsStatCompleted"), color: "#22C55E", bg: "#ECFDF5" },
+                    { Icon: Clock,        value: plannedCount,   label: t("lessonsStatPlanned"),   color: "#D97706", bg: "#FFFBEB" },
+                    { Icon: Ban,          value: cancelledCount, label: t("lessonsStatCancelled"), color: "#EF4444", bg: "#FEF2F2" },
+                  ].map(({ Icon, value, label, color, bg }, i) => (
+                    <View key={i} style={{ flexBasis: "47%", flexGrow: 1, backgroundColor: "#FFFFFF", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: BORDER }}>
+                      <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: bg, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+                        <Icon size={14} color={color} strokeWidth={2} />
+                      </View>
+                      <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{value}</Text>
+                      <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: SUB, marginTop: 1 }}>{label}</Text>
                     </View>
                   ))}
                 </View>
@@ -707,9 +592,9 @@ export default function LessonsScreen() {
               </View>
 
               {archived.length > 0 && (
-                <View style={{ marginTop: 16, backgroundColor: "#F8F7FF", borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#E8E5FF" }}>
-                  <Archive size={18} color="#6B5CF6" />
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#6B5CF6", flex: 1, lineHeight: 18 }}>
+                <View style={{ marginTop: 16, backgroundColor: INDIGO_50, borderRadius: 14, padding: 14, flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#E0E4FA" }}>
+                  <Archive size={18} color={INDIGO} />
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: INDIGO, flex: 1, lineHeight: 18 }}>
                     {t("lessonsArchiveHint")}
                   </Text>
                 </View>
@@ -719,53 +604,10 @@ export default function LessonsScreen() {
                 {filteredArchive.length === 0 ? (
                   <EmptyArchive />
                 ) : (
-                  filteredArchive.map(lesson => (
-                    <LessonCard key={lesson.id} lesson={lesson} onPress={() => handleOpen(lesson.id)} dimmed />
-                  ))
-                )}
-              </View>
-            </View>
-          )}
-
-          {/* ── Payments tab ──────────────────────────────────────────── */}
-          {tab === "payments" && (
-            <View style={{ paddingHorizontal: 20 }}>
-              <SearchBar
-                placeholder={t("lessonsSearchPay")}
-                value={search}
-                onChangeText={setSearch}
-                showMic={false}
-              />
-
-              {payments.length > 0 && (
-                <View style={{ flexDirection: "row", gap: 10, marginTop: 16, marginBottom: 16 }}>
-                  <View style={{ flex: 1, backgroundColor: "#ECFDF5", borderRadius: 16, padding: 14, alignItems: "center", gap: 4 }}>
-                    <TrendingUp size={18} color="#22C55E" />
-                    <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#22C55E" }}>
-                      {thisMonthTotal} ₼
-                    </Text>
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" }}>
-                      {t("lessonsThisMonth")}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: "#F5F3FF", borderRadius: 16, padding: 14, alignItems: "center", gap: 4 }}>
-                    <Banknote size={18} color="#8B5CF6" />
-                    <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#8B5CF6" }}>
-                      {allTimeTotal} ₼
-                    </Text>
-                    <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280", textAlign: "center" }}>
-                      {t("lessonsAllTime")}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              <View style={{ gap: 10, marginTop: payments.length > 0 ? 0 : 16 }}>
-                {filteredPayments.length === 0 ? (
-                  <EmptyPayments onAdd={() => setShowAddPay(true)} />
-                ) : (
-                  filteredPayments.map(p => (
-                    <PaymentCard key={p.id} payment={p} onDelete={deletePayment} />
+                  filteredArchive.map((lesson, i) => (
+                    <Animated.View key={lesson.id} entering={FadeInDown.delay(i * 30).duration(280)}>
+                      <LessonCard lesson={lesson} onPress={() => handleOpen(lesson.id)} dimmed />
+                    </Animated.View>
                   ))
                 )}
               </View>
@@ -773,12 +615,6 @@ export default function LessonsScreen() {
           )}
         </View>
       </ScrollView>
-
-      {/* ── Add Payment modal ─────────────────────────────────────────── */}
-      <AddPaymentModal
-        visible={showAddPay}
-        onClose={() => setShowAddPay(false)}
-      />
     </View>
   );
 }

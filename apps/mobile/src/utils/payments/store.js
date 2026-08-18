@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { createEncryptedStorage } from "@/utils/storage/secureStorage";
 
 const T = 1748000000000; // May 2026 base — no Date.now() in module scope
 
@@ -71,7 +71,7 @@ export const usePaymentsStore = create(
     }),
     {
       name: "payments-storage-v2",
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(createEncryptedStorage),
     }
   )
 );

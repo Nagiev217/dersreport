@@ -49,7 +49,7 @@ function ParentPanel({ onBack, onConfirm, excludeIds }) {
       if (parent) onConfirm(parent);
     } else {
       const newParent = {
-        id: `parent-${Date.now()}`,
+        id: `parent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
@@ -209,7 +209,11 @@ export default function AddStudentModal({ visible, onClose, onAdd }) {
     if (!name.trim()) return;
     if (students.length >= FREE_LIMIT && !isVip) { onClose(); return; }
     const now = Date.now();
-    const newId = String(now);
+    // A bare Date.now() string collides if two students get added in the same
+    // millisecond (e.g. a double-tap before the modal closes) — that showed up
+    // as a "duplicate key" React warning wherever both ended up in the same
+    // list (e.g. a parent's linked children). Same fix as report ids earlier.
+    const newId = `student-${now}-${Math.random().toString(36).slice(2, 8)}`;
     const newStudent = {
       id: newId,
       name: name.trim(),

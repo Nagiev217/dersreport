@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+apps/mobile/src/utils/dev/devAccounts.js
 
 # Dependencies
 node_modules/
@@ -9,6 +10,10 @@ node_modules/
 # OS cruft
 .DS_Store
 Thumbs.db
+
+# Firebase CLI debug output
+firestore-debug.log
+*-debug.log
 
 # Local Claude Code settings (machine-specific permissions, not shared config)
 .claude/settings.local.json

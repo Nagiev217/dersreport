@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   FileText,
   Bell,
@@ -18,9 +18,11 @@ import {
   ChevronRight,
   User,
   Clock,
+  FlaskConical,
 } from "lucide-react-native";
 import { useParentData } from "../../utils/firebase/parentRealtime";
 import { useT } from "../../utils/i18n";
+import PressableScale from "@/components/PressableScale";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,6 +59,7 @@ const MAIN_TABS = ["all", "bySubject", "byType"];
 
 export default function ParentReports() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { highlight } = useLocalSearchParams();
   const { t, tSubject, tName, months } = useT();
   const monthsShort = months(true);
@@ -208,11 +211,24 @@ export default function ParentReports() {
         <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
           <Menu size={18} color="#1C1C1E" />
         </View>
-        <View style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-          <Bell size={22} color="#1C1C1E" />
-          {reports.some((r) => !r.isRead) && (
-            <View style={{ position: "absolute", top: 8, right: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: "#6B5CF6", borderWidth: 1.5, borderColor: "#FFFFFF" }} />
-          )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {/* Temporary — links to the "timeline" test variant for
+              side-by-side comparison. Remove once a version is picked. */}
+          <PressableScale
+            onPress={() => router.push("/(parent-tabs)/reports-variant-timeline")}
+            scaleTo={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Тестовая версия"
+            style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}
+          >
+            <FlaskConical size={16} color="#6B5CF6" />
+          </PressableScale>
+          <View style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+            <Bell size={22} color="#1C1C1E" />
+            {reports.some((r) => !r.isRead) && (
+              <View style={{ position: "absolute", top: 8, right: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: "#6B5CF6", borderWidth: 1.5, borderColor: "#FFFFFF" }} />
+            )}
+          </View>
         </View>
       </View>
 

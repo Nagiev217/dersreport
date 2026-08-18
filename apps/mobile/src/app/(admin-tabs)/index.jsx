@@ -1,28 +1,41 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
-import Svg, { Path } from "react-native-svg";
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import {
   Bell, Settings, Users, GraduationCap, BookOpen, FileText, Wallet,
   TrendingUp, TrendingDown, Heart, UserPlus, BarChart2, ChevronRight,
-  CreditCard, Banknote, ArrowLeftRight, UserPlus2,
+  UserPlus2, ShieldCheck, Clock, ArrowUpRight, CalendarDays,
 } from "lucide-react-native";
 import {
-  getOrgAnalytics, getFinanceOverview, getTeacherWorkload, getOrgActivity, listManagedTeachers,
+  getOrgAnalytics, getFinanceOverview, getTeacherWorkload, getOrgActivity, listManagedTeachers, clearAdminCache,
 } from "@/utils/firebase/adminAccounts";
 import { useMyRole } from "@/utils/auth/useMyRole";
-import { canManageAccounts, ROLES } from "@/utils/auth/permissions";
+import { canManageAccounts, canViewFinance, canViewPayments, ROLES } from "@/utils/auth/permissions";
 import { auth } from "@/utils/firebase/config";
 import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 
-const NAVY_GRAD = ["#22447A", "#152C51"];
-const SHEET = "#F4F5F7";
+// ─── Design tokens — Blue + Indigo + White, matching the approved preview ───
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const BRAND_GRAD = [BLUE, INDIGO];
 const CARD  = "#FFFFFF";
 const TEXT  = "#111827";
 const SUB   = "#8E93A1";
+const BORDER = "#E5E9F2";
 
 const AVATAR_COLORS = ["#2563EB", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#8B5CF6", "#EC4899", "#0EA5E9"];
 function avatarBg(name = "") {
@@ -36,50 +49,29 @@ function initials(name = "") {
 }
 // Thousand separators — large sums (e.g. 676769296) are unreadable without them.
 function fmt(n) {
-  return String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return String(n ?? 0).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
-// ─── Donut (SVG, reused pattern from teacher analytics) ─────────────────────
-function Donut({ data, size = 118, strokeW = 18 }) {
-  const r = (size - strokeW) / 2;
-  const cx = size / 2, cy = size / 2;
-  const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const nonZero = data.filter((d) => d.value > 0);
-  if (nonZero.length === 0) return null;
-  const GAP = nonZero.length > 1 ? 0.06 : 0;
-  let angle = -Math.PI / 2;
-  const arcs = nonZero.map((item) => {
-    const sweep = Math.max((item.value / total) * 2 * Math.PI - GAP, 0.01);
-    const endA = angle + sweep;
-    const x1 = (cx + r * Math.cos(angle)).toFixed(2);
-    const y1 = (cy + r * Math.sin(angle)).toFixed(2);
-    const x2 = (cx + r * Math.cos(endA)).toFixed(2);
-    const y2 = (cy + r * Math.sin(endA)).toFixed(2);
-    const large = sweep > Math.PI ? 1 : 0;
-    const path = `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
-    angle = endA + GAP;
-    return { ...item, path };
-  });
-  return (
-    <Svg width={size} height={size}>
-      {arcs.map((arc, i) => (
-        <Path key={i} d={arc.path} stroke={arc.color} strokeWidth={strokeW} fill="none" strokeLinecap="round" />
-      ))}
-    </Svg>
-  );
+// Subtle breathing scale on the banner icon — draws the eye without being loud.
+function PulseIcon({ children }) {
+  const scale = useSharedValue(1);
+  useEffect(() => {
+    scale.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.sin) }),
+      ),
+      -1,
+    );
+  }, []);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
-
-const METHOD_META = {
-  card:     { icon: CreditCard,     color: "#2563EB", labelKey: "adminExportMethodCard" },
-  cash:     { icon: Banknote,       color: "#22C55E", labelKey: "adminExportMethodCash" },
-  transfer: { icon: ArrowLeftRight, color: "#8B5CF6", labelKey: "adminExportMethodTransfer" },
-  other:    { icon: Wallet,         color: "#F59E0B", labelKey: "adminExportMethodOther" },
-};
 
 const EVENT_META = {
-  student: { color: "#2563EB", bg: "#E8EEFB", icon: UserPlus2 },
-  report:  { color: "#8B5CF6", bg: "#F0EAFC", icon: FileText },
-  payment: { color: "#F59E0B", bg: "#FDF1DF", icon: Wallet },
+  student: { color: BLUE,   bg: BLUE_50,   icon: UserPlus2 },
+  report:  { color: INDIGO, bg: INDIGO_50, icon: FileText },
+  payment: { color: "#F59E0B", bg: "#FFFBEB", icon: Wallet },
 };
 
 function timeAgo(ts, t) {
@@ -129,7 +121,7 @@ export default function AdminDashboard() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  const onRefresh = () => { setRefreshing(true); load(); };
+  const onRefresh = () => { clearAdminCache(); setRefreshing(true); load(); };
 
   const totals = analytics?.totals;
   const activeTeachers = teachers.filter((tc) => !tc.disabled).length;
@@ -140,25 +132,34 @@ export default function AdminDashboard() {
 
   // Header stat cards
   const STATS = [
-    { icon: Users,    value: totals?.teachersCount ?? teachers.length, label: t("dashboardStatTeachers") },
-    { icon: GraduationCap, value: totals?.studentsCount ?? 0, label: t("adminStatStudents") },
-    { icon: BookOpen, value: totals?.lessonsCount ?? 0, label: t("adminStatLessons") },
-    { icon: FileText, value: totals?.reportsCount ?? 0, label: t("adminStatReports") },
+    { icon: Users,    value: totals?.teachersCount ?? teachers.length, label: t("dashboardStatTeachers"), color: BLUE,      bg: BLUE_50 },
+    { icon: GraduationCap, value: totals?.studentsCount ?? 0, label: t("adminStatStudents"), color: INDIGO,    bg: INDIGO_50 },
+    { icon: BookOpen, value: totals?.lessonsCount ?? 0, label: t("adminStatLessons"), color: "#22C55E", bg: "#ECFDF5" },
+    { icon: FileText, value: totals?.reportsCount ?? 0, label: t("adminStatReports"), color: "#D97706", bg: "#FFFBEB" },
     ...(totals && "income" in totals
-      ? [{ icon: Wallet, value: `${fmt(totals.income)} ₼`, label: t("adminStatIncome") }]
+      ? [{ icon: Wallet, value: `${fmt(totals.income)} ₼`, label: t("adminStatIncome"), color: "#059669", bg: "#ECFDF5" }]
       : []),
   ];
 
   // Quick access tiles
   const TILES = [
-    { icon: Users,     label: t("adminRosterTab"),    color: "#2563EB", bg: "#E8EEFB", route: "/(admin-tabs)/teachers" },
-    { icon: BarChart2, label: t("adminAnalyticsTab"), color: "#22C55E", bg: "#E4F6EF", route: "/(admin-tabs)/analytics" },
-    { icon: Bell,      label: t("adminActivityTab"),  color: "#8B5CF6", bg: "#F0EAFC", route: "/(admin-tabs)/activity" },
+    { icon: GraduationCap, label: t("adminTeachingTab"), color: INDIGO, bg: INDIGO_50, route: "/(tabs)" },
+    { icon: Users,     label: t("adminRosterTab"),    color: BLUE,      bg: BLUE_50,  route: "/(admin-tabs)/teachers" },
+    role === ROLES.ADMIN
+      ? { icon: CalendarDays, label: t("adminScheduleTab"), color: "#22C55E", bg: "#ECFDF5", route: "/(admin-tabs)/schedule" }
+      : { icon: BarChart2, label: t("adminAnalyticsTab"), color: "#22C55E", bg: "#ECFDF5", route: "/(admin-tabs)/analytics" },
+    { icon: Bell,      label: t("adminActivityTab"),  color: "#8B5CF6", bg: "#F3F0FF", route: "/(admin-tabs)/activity" },
     { icon: Heart,     label: t("adminParentsTab"),   color: "#EC4899", bg: "#FCE9F3", route: "/(admin-tabs)/parents" },
-    ...(canManageAccounts(role)
-      ? [{ icon: UserPlus, label: t("adminCreateTab"), color: "#F59E0B", bg: "#FDF1DF", route: "/(admin-tabs)/create" }]
+    ...(canViewPayments(role)
+      ? [{ icon: Wallet, label: t("adminPaymentsTitle"), color: "#059669", bg: "#ECFDF5", route: "/(admin-tabs)/payments" }]
       : []),
-    { icon: Settings,  label: t("tabProfile"),        color: "#64748B", bg: "#EEF1F5", route: "/(admin-tabs)/profile" },
+    ...(canViewFinance(role)
+      ? [{ icon: Wallet, label: t("salariesTitle"), color: "#D97706", bg: "#FFFBEB", route: "/(admin-tabs)/salaries" }]
+      : []),
+    ...(canManageAccounts(role)
+      ? [{ icon: UserPlus, label: t("adminCreateTab"), color: "#F97316", bg: "#FFEDD5", route: "/(admin-tabs)/create" }]
+      : []),
+    { icon: Settings,  label: t("tabProfile"),        color: "#64748B", bg: "#F1F5F9", route: "/(admin-tabs)/profile" },
   ];
 
   // Finance KPIs (boss only)
@@ -167,11 +168,6 @@ export default function AdminDashboard() {
     const [latest, prev] = finance.monthlyBreakdown;
     if (prev.amount > 0) momPct = Math.round(((latest.amount - prev.amount) / prev.amount) * 100);
   }
-
-  const donutData = finance
-    ? finance.byMethod.map((m) => ({ value: m.amount, color: (METHOD_META[m.method] ?? METHOD_META.other).color, method: m.method }))
-    : [];
-  const donutTotal = donutData.reduce((s, d) => s + d.value, 0);
 
   const staffPreview = teachers.slice(0, 4);
   const workloadPreview = (workload?.teachers ?? []).slice(0, 4);
@@ -186,30 +182,31 @@ export default function AdminDashboard() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: SHEET }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={NAVY_GRAD[1]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} />}
       >
-        <View style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: NAVY_GRAD[0] }} />
-
-        {/* ── Navy header ─────────────────────────────────────────────── */}
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
         <LinearGradient
-          colors={NAVY_GRAD}
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.55, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.4, y: 1 }}
-          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
+          end={{ x: 0, y: 1 }}
+          style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 24 }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
-                <GraduationCap size={19} color="#FFFFFF" strokeWidth={2} />
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+                <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
               </View>
               <View>
-                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3, lineHeight: 19 }}>Jeff</Text>
-                <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", letterSpacing: 0.3 }}>Colleges</Text>
+                <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>Jeff</Text>
+                <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>Colleges</Text>
               </View>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -218,98 +215,138 @@ export default function AdminDashboard() {
                 accessibilityRole="button"
                 accessibilityLabel={t("adminActivityTab")}
                 scaleTo={0.92}
-                style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+                style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
               >
-                <Bell size={19} color="#FFFFFF" />
-                {activity.length > 0 ? <View style={{ position: "absolute", top: 11, right: 12, width: 7, height: 7, borderRadius: 4, backgroundColor: "#38BDF8" }} /> : null}
+                <Bell size={19} color={TEXT} />
+                {activity.length > 0 ? <View style={{ position: "absolute", top: 11, right: 12, width: 7, height: 7, borderRadius: 4, backgroundColor: BLUE }} /> : null}
               </PressableScale>
               <PressableScale
                 onPress={() => go("/(admin-tabs)/profile")}
                 accessibilityRole="button"
                 accessibilityLabel={t("tabProfile")}
                 scaleTo={0.92}
-                style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: "rgba(255,255,255,0.12)", alignItems: "center", justifyContent: "center" }}
+                style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
               >
-                <Settings size={19} color="#FFFFFF" />
+                <Settings size={19} color={TEXT} />
               </PressableScale>
             </View>
           </View>
 
-          <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" }}>{t("dashboardWelcome")}</Text>
-          <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.5, marginTop: 2 }}>{displayName}</Text>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.6)", marginTop: 2 }}>{roleLabel}</Text>
-
-          {/* Stat cards */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingTop: 18, paddingRight: 4 }} style={{ marginHorizontal: -2 }}>
-            {STATS.map(({ icon: Icon, value, label }, i) => (
-              <View key={i} style={{ width: 116, backgroundColor: "rgba(255,255,255,0.10)", borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", borderRadius: 16, padding: 12 }}>
-                <Icon size={18} color="#FFFFFF" strokeWidth={1.8} />
-                <Text numberOfLines={1} style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFFFFF", marginTop: 8, letterSpacing: -0.4 }}>{value}</Text>
-                <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", marginTop: 1, letterSpacing: 0.2 }}>{label}</Text>
+          <Animated.View entering={FadeInDown.duration(380).easing(Easing.out(Easing.cubic))}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, backgroundColor: "rgba(37,99,235,0.1)", flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <ShieldCheck size={12} color={BLUE} />
+                <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: BLUE, letterSpacing: 0.2 }}>{roleLabel.toUpperCase()}</Text>
               </View>
+            </View>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB }}>{t("dashboardWelcome")}</Text>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5, marginTop: 2 }}>{displayName}</Text>
+          </Animated.View>
+
+          {/* Stat cards — wrapping grid */}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 22 }}>
+            {STATS.map((s, i) => (
+              <Animated.View
+                key={s.label}
+                entering={FadeInDown.delay(80 + i * 60).duration(380).easing(Easing.out(Easing.cubic))}
+                style={{ flexBasis: "47%", flexGrow: 1 }}
+              >
+                <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: BORDER, shadowColor: INDIGO, shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 }}>
+                  <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: s.bg, alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+                    <s.icon size={17} color={s.color} />
+                  </View>
+                  <Text numberOfLines={1} style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.4 }}>{s.value}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 11.5, fontFamily: "Inter_500Medium", color: SUB, marginTop: 3 }}>{s.label}</Text>
+                </View>
+              </Animated.View>
             ))}
-          </ScrollView>
+          </View>
         </LinearGradient>
 
-        {/* ── White sheet ─────────────────────────────────────────────── */}
-        <View style={{ flex: 1, backgroundColor: SHEET, borderTopLeftRadius: 26, borderTopRightRadius: 26, marginTop: -14, paddingTop: 22, paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}>
-          {loading ? (
-            <ActivityIndicator color={NAVY_GRAD[1]} style={{ marginTop: 40 }} />
-          ) : (
-            <>
-              {/* Key finance metrics — boss only */}
-              {finance ? (
-                <>
-                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 12, letterSpacing: -0.2 }}>{t("dashboardKeyMetrics")}</Text>
-                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 26 }}>
-                    {[
-                      { icon: Wallet, color: "#2563EB", bg: "#E8EEFB", label: t("adminStatIncome"), value: `${fmt(finance.totalIncome)} ₼`, delta: momPct },
-                      { icon: TrendingUp, color: "#22C55E", bg: "#E4F6EF", label: t("adminFinanceAvgCheck"), value: `${fmt(finance.avgCheck)} ₼` },
-                      { icon: FileText, color: "#8B5CF6", bg: "#F0EAFC", label: t("adminFinanceDebtors"), value: finance.debtors.length, danger: finance.debtors.length > 0 },
-                      { icon: Users, color: "#F59E0B", bg: "#FDF1DF", label: t("dashboardStatTeachers"), value: `${activeTeachers}/${teachers.length}` },
-                    ].map((m, i) => (
-                      <View key={i} style={{ flexBasis: "47%", flexGrow: 1, backgroundColor: CARD, borderRadius: 16, padding: 14, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                          <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: m.bg, alignItems: "center", justifyContent: "center" }}>
-                            <m.icon size={16} color={m.color} />
-                          </View>
-                          {typeof m.delta === "number" ? (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-                              {m.delta >= 0 ? <TrendingUp size={11} color="#22C55E" /> : <TrendingDown size={11} color="#EF4444" />}
-                              <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: m.delta >= 0 ? "#22C55E" : "#EF4444" }}>{m.delta >= 0 ? "+" : ""}{m.delta}%</Text>
-                            </View>
-                          ) : null}
-                        </View>
-                        <Text numberOfLines={1} style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: m.danger ? "#EF4444" : TEXT, marginTop: 10, letterSpacing: -0.4 }}>{m.value}</Text>
-                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginTop: 2, letterSpacing: 0.2 }}>{m.label}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              ) : null}
-
-              {/* Quick access */}
-              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 12, letterSpacing: -0.2 }}>{t("dashboardQuickAccess")}</Text>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 26 }}>
+        {loading ? (
+          <ActivityIndicator color={BLUE} style={{ marginTop: 60 }} />
+        ) : (
+          <>
+            {/* ── SECTION 2 — Quick actions (white) ── */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 26 }}>
+              <Animated.View entering={FadeInDown.duration(320)}>
+                <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 14, letterSpacing: -0.3 }}>
+                  {t("dashboardQuickAccess")}
+                </Text>
+              </Animated.View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
                 {TILES.map((tile, i) => (
-                  <PressableScale
-                    key={i}
-                    onPress={() => go(tile.route)}
-                    accessibilityRole="button"
-                    accessibilityLabel={tile.label}
-                    style={{ flexBasis: "30.5%", flexGrow: 1, backgroundColor: CARD, borderRadius: 16, paddingVertical: 16, alignItems: "center", gap: 8, shadowColor: "#0B1B3A", shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 1 }}
-                  >
-                    <View style={{ width: 44, height: 44, borderRadius: 13, backgroundColor: tile.bg, alignItems: "center", justifyContent: "center" }}>
-                      <tile.icon size={20} color={tile.color} />
-                    </View>
-                    <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: TEXT }}>{tile.label}</Text>
-                  </PressableScale>
+                  <Animated.View key={i} entering={FadeInDown.delay(50 + i * 40).duration(320)} style={{ flexBasis: "22%", flexGrow: 1 }}>
+                    <PressableScale
+                      onPress={() => go(tile.route)}
+                      accessibilityRole="button"
+                      accessibilityLabel={tile.label}
+                      style={{ alignItems: "center", gap: 8, paddingVertical: 6 }}
+                    >
+                      <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: tile.bg, alignItems: "center", justifyContent: "center" }}>
+                        <tile.icon size={22} color={tile.color} />
+                      </View>
+                      <Text numberOfLines={1} style={{ fontSize: 11.5, fontFamily: "Inter_600SemiBold", color: TEXT, textAlign: "center" }}>{tile.label}</Text>
+                    </PressableScale>
+                  </Animated.View>
                 ))}
               </View>
+            </View>
 
-              {/* Staff */}
+            {/* ── SECTION 3 — Finance spotlight banner (gradient blue → indigo, boss only) ── */}
+            {finance ? (
+              <View style={{ paddingHorizontal: 20, paddingTop: 24 }}>
+                <Animated.View entering={FadeInDown.duration(360)}>
+                  <PressableScale onPress={() => go("/(admin-tabs)/analytics")} style={{ borderRadius: 22, overflow: "hidden" }}>
+                    <LinearGradient colors={BRAND_GRAD} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: 20, flexDirection: "row", alignItems: "center", gap: 16 }}>
+                      <PulseIcon>
+                        <View style={{ width: 52, height: 52, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
+                          <TrendingUp size={24} color="#FFFFFF" />
+                        </View>
+                      </PulseIcon>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{fmt(finance.totalIncome)} ₼</Text>
+                        <Text style={{ fontSize: 12.5, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.82)", marginTop: 3, lineHeight: 17 }}>
+                          {t("adminStatIncome")}
+                        </Text>
+                      </View>
+                      {typeof momPct === "number" ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: "rgba(255,255,255,0.16)", paddingHorizontal: 8, paddingVertical: 5, borderRadius: 10 }}>
+                          {momPct >= 0 ? <ArrowUpRight size={12} color="#FFFFFF" /> : <TrendingDown size={12} color="#FFFFFF" />}
+                          <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{momPct >= 0 ? "+" : ""}{momPct}%</Text>
+                        </View>
+                      ) : (
+                        <ChevronRight size={20} color="rgba(255,255,255,0.9)" />
+                      )}
+                    </LinearGradient>
+                  </PressableScale>
+                </Animated.View>
+
+                {/* Secondary finance KPIs */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+                  {[
+                    { icon: TrendingUp, color: "#22C55E", bg: "#ECFDF5", label: t("adminFinanceAvgCheck"), value: `${fmt(finance.avgCheck)} ₼` },
+                    { icon: FileText, color: INDIGO, bg: INDIGO_50, label: t("adminFinanceDebtors"), value: finance.debtors.length, danger: finance.debtors.length > 0 },
+                    { icon: Users, color: "#D97706", bg: "#FFFBEB", label: t("dashboardStatTeachers"), value: `${activeTeachers}/${teachers.length}` },
+                  ].map((m, i) => (
+                    <Animated.View key={i} entering={FadeInDown.delay(60 + i * 50).duration(320)} style={{ flexBasis: "31%", flexGrow: 1 }}>
+                      <View style={{ backgroundColor: CARD, borderRadius: 16, padding: 13, borderWidth: 1, borderColor: BORDER }}>
+                        <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: m.bg, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+                          <m.icon size={14} color={m.color} />
+                        </View>
+                        <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: m.danger ? "#EF4444" : TEXT }}>{m.value}</Text>
+                        <Text numberOfLines={1} style={{ fontSize: 10.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 1 }}>{m.label}</Text>
+                      </View>
+                    </Animated.View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {/* ── SECTION 4 — Staff (white) ── */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
               <SectionHeader title={t("dashboardStaff")} action={t("dashboardSeeAll")} onPress={() => go("/(admin-tabs)/teachers")} />
-              <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", marginBottom: 26 }}>
+              <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
                 {staffPreview.length === 0 ? (
                   <Text style={{ padding: 16, fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center" }}>{t("adminRosterEmpty")}</Text>
                 ) : staffPreview.map((tc, i) => {
@@ -321,7 +358,7 @@ export default function AdminDashboard() {
                       accessibilityRole="button"
                       accessibilityLabel={name}
                       onPress={() => router.push({ pathname: `/(admin-tabs)/teacher/${tc.uid}`, params: { name, email: tc.email, disabled: String(!!tc.disabled) } })}
-                      style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: i < staffPreview.length - 1 ? 1 : 0, borderBottomColor: "#F1F2F5" }}
+                      style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: "#F1F5F9" }}
                     >
                       <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: avatarBg(name), alignItems: "center", justifyContent: "center" }}>
                         <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials(name)}</Text>
@@ -339,91 +376,65 @@ export default function AdminDashboard() {
                   );
                 })}
               </View>
+            </View>
 
-              {/* Financial overview — donut by payment method, boss only */}
-              {finance && donutTotal > 0 ? (
-                <>
-                  <SectionHeader title={t("dashboardFinanceOverview")} action={t("dashboardGoToFinance")} onPress={() => go("/(admin-tabs)/analytics")} />
-                  <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 16, marginBottom: 26, flexDirection: "row", alignItems: "center", gap: 16 }}>
-                    <View
-                      style={{ width: 118, height: 118, alignItems: "center", justifyContent: "center" }}
-                      importantForAccessibility="no-hide-descendants"
-                      accessibilityElementsHidden
-                    >
-                      <Donut data={donutData} />
-                      <View style={{ position: "absolute", alignItems: "center", paddingHorizontal: 10 }}>
-                        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT }}>
-                          {fmt(finance.totalIncome)}
-                        </Text>
-                        <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB }}>₼</Text>
-                      </View>
-                    </View>
-                    <View style={{ flex: 1, gap: 10 }}>
-                      {finance.byMethod.map((m) => {
-                        const meta = METHOD_META[m.method] ?? METHOD_META.other;
-                        const pct = Math.round((m.amount / donutTotal) * 100);
-                        return (
-                          <View key={m.method} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                            <View style={{ width: 10, height: 10, borderRadius: 3, backgroundColor: meta.color }} />
-                            <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", color: TEXT }}>{t(meta.labelKey)}</Text>
-                            <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: TEXT }}>{fmt(m.amount)} ₼</Text>
-                            <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, width: 34, textAlign: "right" }}>{pct}%</Text>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  </View>
-                </>
-              ) : null}
-
-              {/* Notifications */}
+            {/* ── SECTION 6 — Notifications (white) ── */}
+            <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
               <SectionHeader title={t("dashboardNotifications")} action={t("dashboardAllNotifications")} onPress={() => go("/(admin-tabs)/activity")} />
-              <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", marginBottom: 26 }}>
+              <View style={{ backgroundColor: CARD, borderRadius: 18, overflow: "hidden", borderWidth: 1, borderColor: BORDER }}>
                 {activityPreview.length === 0 ? (
                   <Text style={{ padding: 16, fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center" }}>{t("adminEmptySection")}</Text>
                 ) : activityPreview.map((e, i) => {
                   const meta = EVENT_META[e.type] ?? EVENT_META.student;
                   return (
-                    <View key={`${e.type}-${e.at}-${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderBottomWidth: i < activityPreview.length - 1 ? 1 : 0, borderBottomColor: "#F1F2F5" }}>
-                      <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: meta.bg, alignItems: "center", justifyContent: "center" }}>
-                        <meta.icon size={16} color={meta.color} />
+                    <View key={`${e.type}-${e.at}-${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: "#F1F5F9" }}>
+                      <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: meta.bg, alignItems: "center", justifyContent: "center" }}>
+                        <meta.icon size={17} color={meta.color} />
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT }}>{activityLabel(e)}</Text>
-                        <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginTop: 2, letterSpacing: 0.2 }}>{e.teacherName} · {timeAgo(e.at, t)}</Text>
+                        <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, marginTop: 2 }}>{e.teacherName}</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                        <Clock size={11} color="#94A3B8" />
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: "#94A3B8" }}>{timeAgo(e.at, t)}</Text>
                       </View>
                     </View>
                   );
                 })}
               </View>
+            </View>
 
-              {/* Teacher workload */}
-              {workloadPreview.length > 0 ? (
-                <>
-                  <SectionHeader title={t("dashboardWorkload")} action={t("dashboardSeeAll")} onPress={() => go("/(admin-tabs)/analytics")} />
-                  <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 16, marginBottom: 8 }}>
-                    {workloadPreview.map((w, i) => (
-                      <View key={w.uid} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: i < workloadPreview.length - 1 ? 14 : 0 }}>
-                        <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: avatarBg(w.name), alignItems: "center", justifyContent: "center" }}>
-                          <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials(w.name)}</Text>
+            {/* ── SECTION 7 — Teacher workload (white) ── */}
+            {workloadPreview.length > 0 ? (
+              <View style={{ paddingHorizontal: 20, paddingTop: 28 }}>
+                <SectionHeader title={t("dashboardWorkload")} action={t("dashboardSeeAll")} onPress={() => go(role === ROLES.ADMIN ? "/(admin-tabs)/schedule" : "/(admin-tabs)/analytics")} />
+                <View style={{ backgroundColor: CARD, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: BORDER }}>
+                  {workloadPreview.map((w, i) => (
+                    <View key={w.uid} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: i < workloadPreview.length - 1 ? 14 : 0 }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: avatarBg(w.name), alignItems: "center", justifyContent: "center" }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials(w.name)}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
+                          <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT, flex: 1 }}>{w.name}</Text>
+                          <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: SUB }}>{w.lessonsCount} {t("adminWorkloadLessonsShort")}</Text>
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
-                            <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT, flex: 1 }}>{w.name}</Text>
-                            <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: SUB }}>{w.lessonsCount} {t("adminWorkloadLessonsShort")}</Text>
-                          </View>
-                          <View style={{ height: 6, borderRadius: 3, backgroundColor: "#F1F2F5", overflow: "hidden" }}>
-                            <View style={{ height: 6, borderRadius: 3, backgroundColor: NAVY_GRAD[1], width: `${Math.max((w.lessonsCount / workloadMax) * 100, 3)}%` }} />
-                          </View>
+                        <View style={{ height: 6, borderRadius: 3, backgroundColor: "#F1F5F9", overflow: "hidden" }}>
+                          <LinearGradient
+                            colors={BRAND_GRAD}
+                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                            style={{ height: 6, borderRadius: 3, width: `${Math.max((w.lessonsCount / workloadMax) * 100, 3)}%` }}
+                          />
                         </View>
                       </View>
-                    ))}
-                  </View>
-                </>
-              ) : null}
-            </>
-          )}
-        </View>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -432,7 +443,7 @@ export default function AdminDashboard() {
 function SectionHeader({ title, action, onPress }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-      <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{title}</Text>
+      <Text style={{ fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3 }}>{title}</Text>
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.7}
@@ -441,8 +452,8 @@ function SectionHeader({ title, action, onPress }) {
         hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
         style={{ flexDirection: "row", alignItems: "center", gap: 2 }}
       >
-        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: NAVY_GRAD[1] }}>{action}</Text>
-        <ChevronRight size={14} color={NAVY_GRAD[1]} />
+        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: BLUE }}>{action}</Text>
+        <ChevronRight size={14} color={BLUE} />
       </TouchableOpacity>
     </View>
   );

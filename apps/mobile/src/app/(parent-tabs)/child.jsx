@@ -18,14 +18,26 @@ import {
   ChevronRight,
   Users,
   Edit3,
-  MoreVertical,
   CheckCircle2,
   ArrowLeft,
   GraduationCap,
+  FlaskConical,
 } from "lucide-react-native";
 
 import { useParentData } from "../../utils/firebase/parentRealtime";
 import { useT } from "../../utils/i18n";
+import PressableScale from "@/components/PressableScale";
+
+// ─── Design tokens — Blue + Indigo + White, matching the parent home screen ──
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
+const TEXT   = "#111827";
+const SUB    = "#8E93A1";
+const BORDER = "#E5E9F2";
+const GREEN  = "#22C55E";
+const AMBER  = "#D97706";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -46,7 +58,7 @@ function formatTime(dateStr, timeStr) {
   return timeStr ?? "";
 }
 
-const SUBJECT_COLORS = ["#6B5CF6", "#3B82F6", "#22C55E", "#F97316", "#EC4899", "#F59E0B", "#14B8A6", "#EF4444"];
+const SUBJECT_COLORS = [BLUE, INDIGO, GREEN, "#F97316", "#EC4899", AMBER, "#14B8A6", "#EF4444"];
 
 function subjectColor(name) {
   let h = 0;
@@ -68,7 +80,7 @@ function formatRelative(s, t) {
 // ─── Subject row ──────────────────────────────────────────────────────────────
 
 function SubjectRow({ subject, pct, color, tSubject }) {
-  const bgColor = color + "22"; // 13% opacity
+  const bgColor = color + "1F"; // ~12% opacity
   return (
     <TouchableOpacity
       activeOpacity={0.8}
@@ -78,14 +90,14 @@ function SubjectRow({ subject, pct, color, tSubject }) {
         <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color }}>{subjectInitial(tSubject(subject))}</Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: "#1C1C1E", marginBottom: 6 }}>
+        <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 6 }}>
           {tSubject(subject)}
         </Text>
-        <View style={{ height: 4, backgroundColor: "#F2F2F7", borderRadius: 2, overflow: "hidden" }}>
+        <View style={{ height: 4, backgroundColor: BORDER, borderRadius: 2, overflow: "hidden" }}>
           <View style={{ width: `${pct}%`, height: 4, backgroundColor: color, borderRadius: 2 }} />
         </View>
       </View>
-      <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1C1C1E", width: 44, textAlign: "right" }}>
+      <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, width: 44, textAlign: "right" }}>
         {pct}%
       </Text>
       <ChevronRight size={16} color="#C7C7CC" />
@@ -96,42 +108,38 @@ function SubjectRow({ subject, pct, color, tSubject }) {
 // ─── Last lesson card ─────────────────────────────────────────────────────────
 
 function LastLessonCard({ lesson, report, t, tSubject }) {
-  const color = "#6B5CF6";
   const pct = report ? (report.activityScore ?? 3) * 20 : null;
-  const pctColors = { 100: "#22C55E", 80: "#3B82F6", 60: "#F59E0B", 40: "#F97316", 20: "#EF4444" };
-  const pctColor = pctColors[pct] ?? "#F59E0B";
+  const pctColors = { 100: GREEN, 80: BLUE, 60: AMBER, 40: "#F97316", 20: "#EF4444" };
+  const pctColor = pctColors[pct] ?? AMBER;
 
   return (
     <View style={{
       backgroundColor: "#FFFFFF",
       borderRadius: 18,
       padding: 16,
-      shadowColor: "#000",
-      shadowOpacity: 0.05,
-      shadowRadius: 10,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 2,
+      borderWidth: 1,
+      borderColor: BORDER,
     }}>
       <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center" }}>
-          <BookOpen size={22} color={color} />
+        <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: INDIGO_50, alignItems: "center", justifyContent: "center" }}>
+          <BookOpen size={22} color={INDIGO} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 3 }}>
+          <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 3 }}>
             {tSubject(lesson.subject)}
           </Text>
-          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93", marginBottom: 3 }}>
+          <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 3 }}>
             {formatRelative(lesson.date, t)}{lesson.time ? `, ${lesson.time}` : ""}
             {lesson.endTime ? ` – ${lesson.endTime}` : ""}
           </Text>
           {report?.topic && (
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
               {t("childHWTopic")}: {report.topic}
             </Text>
           )}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }}>
-            <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "#F2F2F7", borderRadius: 20 }}>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#8E8E93" }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: "#F1F5F9", borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: SUB }}>
                 {t("childLessonDone")}
               </Text>
             </View>
@@ -139,7 +147,7 @@ function LastLessonCard({ lesson, report, t, tSubject }) {
         </View>
         {pct !== null && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <View style={{ paddingHorizontal: 10, paddingVertical: 5, backgroundColor: pctColor + "22", borderRadius: 10 }}>
+            <View style={{ paddingHorizontal: 10, paddingVertical: 5, backgroundColor: pctColor + "1F", borderRadius: 10 }}>
               <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: pctColor }}>{pct}%</Text>
             </View>
             <ChevronRight size={16} color="#C7C7CC" />
@@ -156,24 +164,24 @@ function BottomCards({ nextLesson, homework, t, tSubject }) {
   return (
     <View style={{ flexDirection: "row", gap: 12 }}>
       {/* Next lesson */}
-      <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#8E8E93", marginBottom: 10 }}>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: BORDER }}>
+        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: SUB, marginBottom: 10 }}>
           {t("childNextLesson")}
         </Text>
         {nextLesson ? (
           <>
-            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
-              <Calendar size={16} color="#6B5CF6" />
+            <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+              <Calendar size={16} color={BLUE} />
             </View>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 4 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 4 }}>
               {tSubject(nextLesson.subject)}
             </Text>
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93", lineHeight: 18 }}>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, lineHeight: 18 }}>
               {formatRelative(nextLesson.date, t)}{nextLesson.time ? `, ${nextLesson.time}` : ""}
               {nextLesson.endTime ? ` – ${nextLesson.endTime}` : ""}
             </Text>
             {nextLesson.room && (
-              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>
+              <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
                 {nextLesson.room}
               </Text>
             )}
@@ -184,22 +192,22 @@ function BottomCards({ nextLesson, homework, t, tSubject }) {
       </View>
 
       {/* Homework */}
-      <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#8E8E93", marginBottom: 10 }}>
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", borderRadius: 18, padding: 14, borderWidth: 1, borderColor: BORDER }}>
+        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: SUB, marginBottom: 10 }}>
           {t("childHW")}
         </Text>
         {homework ? (
           <>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <View style={{ width: 36, height: 36, borderRadius: 11, backgroundColor: "#F0FDF4", alignItems: "center", justifyContent: "center" }}>
-                <FileText size={16} color="#22C55E" />
+                <FileText size={16} color={GREEN} />
               </View>
               <ChevronRight size={16} color="#C7C7CC" />
             </View>
-            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 4 }}>
+            <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 4 }}>
               {tSubject(homework.subject)}
             </Text>
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: "#8E8E93", lineHeight: 18 }} numberOfLines={2}>
+            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, lineHeight: 18 }} numberOfLines={2}>
               {homework.homework}
             </Text>
           </>
@@ -224,23 +232,29 @@ function ChildSelector({ children, selected, onSelect }) {
     >
       {children.map((c) => {
         const cName = tName(c.name);
+        const active = selected?.id === c.id;
         return (
-        <TouchableOpacity
+        <PressableScale
           key={c.id}
           onPress={() => onSelect(c)}
+          scaleTo={0.95}
+          accessibilityRole="button"
+          accessibilityLabel={cName}
+          accessibilityState={{ selected: active }}
           style={{
             flexDirection: "row", alignItems: "center", gap: 8,
             paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-            backgroundColor: selected?.id === c.id ? "#6B5CF6" : "#F2F2F7",
+            backgroundColor: active ? BLUE : "#FFFFFF",
+            borderWidth: 1, borderColor: active ? BLUE : BORDER,
           }}
         >
-          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: selected?.id === c.id ? "rgba(255,255,255,0.3)" : (c.avatarColor ?? "#6B5CF6"), alignItems: "center", justifyContent: "center" }}>
+          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: active ? "rgba(255,255,255,0.3)" : (c.avatarColor ?? BLUE), alignItems: "center", justifyContent: "center" }}>
             <Text style={{ fontSize: 10, fontFamily: "Inter_700Bold", color: "#FFF" }}>{cName?.[0]}</Text>
           </View>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: selected?.id === c.id ? "#FFF" : "#1C1C1E" }}>
+          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: active ? "#FFF" : TEXT }}>
             {cName}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
         );
       })}
     </ScrollView>
@@ -270,22 +284,25 @@ export default function ParentChild() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator color="#6B5CF6" size="large" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={BLUE} size="large" />
+        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, marginTop: 12 }}>
+          {t("loadingData")}
+        </Text>
       </View>
     );
   }
 
   if (children.length === 0) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#F2F2F7", alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-          <Users size={32} color="#6B5CF6" />
+      <View style={{ flex: 1, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", paddingHorizontal: 40 }}>
+        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: BLUE_50, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+          <Users size={32} color={BLUE} />
         </View>
-        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: "#1C1C1E", textAlign: "center", marginBottom: 8 }}>
+        <Text style={{ fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT, textAlign: "center", marginBottom: 8 }}>
           {t("parentNoChildren")}
         </Text>
-        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center", lineHeight: 20 }}>
+        <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 20 }}>
           {t("parentNoChildrenHint")}
         </Text>
       </View>
@@ -350,7 +367,7 @@ export default function ParentChild() {
     : "?";
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F2F2F7" }}>
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
       {/* ── Nav bar ── */}
       <View style={{
         backgroundColor: "#FFFFFF",
@@ -361,22 +378,29 @@ export default function ParentChild() {
         alignItems: "center",
         justifyContent: "space-between",
       }}>
-        <TouchableOpacity
-          activeOpacity={0.7}
+        <PressableScale
           onPress={() => router.push("/(parent-tabs)/")}
-          style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+          scaleTo={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={t("back")}
+          style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}
         >
-          <ArrowLeft size={22} color="#1C1C1E" />
-        </TouchableOpacity>
-        <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }}>
+          <ArrowLeft size={20} color={TEXT} />
+        </PressableScale>
+        <Text style={{ fontSize: 17, fontFamily: "Inter_600SemiBold", color: TEXT }}>
           {t("parentChildTitle")}
         </Text>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}
+        {/* Temporary — links to the "card-modules" test variant for side-by-side
+            comparison. Remove once a version is picked. */}
+        <PressableScale
+          onPress={() => router.push("/(parent-tabs)/child-variant-modules")}
+          scaleTo={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Тестовая версия"
+          style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: INDIGO_50, alignItems: "center", justifyContent: "center" }}
         >
-          <MoreVertical size={22} color="#1C1C1E" />
-        </TouchableOpacity>
+          <FlaskConical size={18} color={INDIGO} />
+        </PressableScale>
       </View>
 
       <ScrollView
@@ -386,7 +410,7 @@ export default function ParentChild() {
       >
         {/* ── Hero card ── */}
         <LinearGradient
-          colors={["#8B7CF8", "#6B5CF6", "#5A4CD6"]}
+          colors={[BLUE, INDIGO]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{ marginHorizontal: 16, marginTop: 12, borderRadius: 22, padding: 20, overflow: "hidden" }}
@@ -400,7 +424,7 @@ export default function ParentChild() {
             {/* Avatar */}
             <View style={{
               width: 80, height: 80, borderRadius: 40,
-              backgroundColor: child?.avatarColor ?? "#8B7CF8",
+              backgroundColor: child?.avatarColor ?? BLUE,
               alignItems: "center", justifyContent: "center",
               borderWidth: 3, borderColor: "rgba(255,255,255,0.5)",
             }}>
@@ -447,22 +471,20 @@ export default function ParentChild() {
           paddingVertical: 16,
           paddingHorizontal: 8,
           flexDirection: "row",
-          shadowColor: "#000",
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
-          elevation: 2,
+          borderWidth: 1,
+          borderColor: BORDER,
         }}>
           {[
-            { Icon: BookOpen,     value: totalLessons, label: t("statsTotalLessons"), color: "#6B5CF6" },
-            { Icon: CheckCircle2, value: `${attend}%`, label: t("childAvgAttendLabel"), color: "#22C55E" },
-            { Icon: Star,         value: avgScore,     label: t("childAvgScoreLabel"), color: "#F59E0B" },
+            { Icon: BookOpen,     value: totalLessons, label: t("statsTotalLessons"), color: INDIGO },
+            { Icon: CheckCircle2, value: `${attend}%`, label: t("childAvgAttendLabel"), color: GREEN },
+            { Icon: Star,         value: avgScore,     label: t("childAvgScoreLabel"), color: AMBER },
           ].map(({ Icon, value, label, color }, i) => (
             <View key={i} style={{ flex: 1, alignItems: "center" }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
                 <Icon size={18} color={color} fill={i === 2 && avgScore !== "—" ? color : "none"} />
-                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>{value}</Text>
+                <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: TEXT }}>{value}</Text>
               </View>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93", textAlign: "center" }}>
+              <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center" }}>
                 {label}
               </Text>
             </View>
@@ -476,6 +498,8 @@ export default function ParentChild() {
           marginTop: 12,
           borderRadius: 18,
           paddingHorizontal: 4,
+          borderWidth: 1,
+          borderColor: BORDER,
         }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: "row" }}>
             {TABS.map((tab) => (
@@ -488,12 +512,12 @@ export default function ParentChild() {
                 <Text style={{
                   fontSize: 14,
                   fontFamily: activeTab === tab ? "Inter_600SemiBold" : "Inter_400Regular",
-                  color: activeTab === tab ? "#6B5CF6" : "#8E8E93",
+                  color: activeTab === tab ? BLUE : SUB,
                 }}>
                   {tabLabels[tab]}
                 </Text>
                 {activeTab === tab && (
-                  <View style={{ height: 2, backgroundColor: "#6B5CF6", borderRadius: 1, marginTop: 2 }} />
+                  <View style={{ height: 2, backgroundColor: BLUE, borderRadius: 1, marginTop: 2 }} />
                 )}
               </TouchableOpacity>
             ))}
@@ -505,19 +529,19 @@ export default function ParentChild() {
           <View style={{ paddingHorizontal: 16, paddingTop: 12, gap: 12 }}>
             {/* Subjects */}
             {subjectList.length > 0 && (
-              <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+              <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, paddingHorizontal: 16, borderWidth: 1, borderColor: BORDER }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14 }}>
-                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#1C1C1E" }}>
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT }}>
                     {t("childSubjectsTitle")}
                   </Text>
-                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "#8E8E93" }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: BLUE }}>
                     {t("seeAll")}
                   </Text>
                 </View>
                 {subjectList.map(({ subject, pct, color }, idx) => (
                   <View key={subject}>
                     <SubjectRow subject={subject} pct={pct} color={color} tSubject={tSubject} />
-                    {idx < subjectList.length - 1 && <View style={{ height: 0.5, backgroundColor: "#F2F2F7" }} />}
+                    {idx < subjectList.length - 1 && <View style={{ height: 1, backgroundColor: BORDER }} />}
                   </View>
                 ))}
                 <View style={{ height: 4 }} />
@@ -527,7 +551,7 @@ export default function ParentChild() {
             {/* Last lesson */}
             {(lastLesson || lastReport) && (
               <View>
-                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 8 }}>
+                <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 8 }}>
                   {t("childLastLesson")}
                 </Text>
                 <LastLessonCard lesson={lastLesson ?? { subject: lastReport?.subject, date: lastReport?.date, time: "" }} report={lastReport} t={t} tSubject={tSubject} />
@@ -543,29 +567,29 @@ export default function ParentChild() {
 
         {activeTab === "performance" && (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 20, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: "#1C1C1E", marginBottom: 16 }}>
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 20, borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 16 }}>
                 {t("childScoreDynamic")}
               </Text>
               {myReports.length === 0 ? (
                 <View style={{ alignItems: "center", paddingVertical: 24 }}>
                   <Star size={32} color="#C7C7CC" />
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 12 }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, marginTop: 12 }}>
                     {t("childReportsEmpty")}
                   </Text>
                 </View>
               ) : (
                 myReports.slice(0, 5).map((r) => {
                   const pct = (r.activityScore ?? 3) * 20;
-                  const pctColors = { 100: "#22C55E", 80: "#3B82F6", 60: "#F59E0B", 40: "#F97316", 20: "#EF4444" };
-                  const color = pctColors[pct] ?? "#F59E0B";
+                  const pctColors = { 100: GREEN, 80: BLUE, 60: AMBER, 40: "#F97316", 20: "#EF4444" };
+                  const color = pctColors[pct] ?? AMBER;
                   return (
-                    <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: "#F2F2F7" }}>
+                    <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1C1C1E" }} numberOfLines={1}>{r.topic ?? tSubject(r.subject)}</Text>
-                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: "#8E8E93" }}>{r.date}</Text>
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT }} numberOfLines={1}>{r.topic ?? tSubject(r.subject)}</Text>
+                        <Text style={{ fontSize: 11, fontFamily: "Inter_400Regular", color: SUB }}>{r.date}</Text>
                       </View>
-                      <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: color + "22", borderRadius: 10 }}>
+                      <View style={{ paddingHorizontal: 10, paddingVertical: 4, backgroundColor: color + "1F", borderRadius: 10 }}>
                         <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color }}>{pct}%</Text>
                       </View>
                     </View>
@@ -578,13 +602,13 @@ export default function ParentChild() {
 
         {activeTab === "attendance" && (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 24, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-              <Text style={{ fontSize: 48, fontFamily: "Inter_700Bold", color: "#6B5CF6" }}>{attend}%</Text>
-              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 8 }}>
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 24, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
+              <Text style={{ fontSize: 48, fontFamily: "Inter_700Bold", color: BLUE }}>{attend}%</Text>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, marginTop: 8 }}>
                 {t("childAvgAttendLabel")}
               </Text>
-              <View style={{ width: "100%", height: 8, backgroundColor: "#F2F2F7", borderRadius: 4, marginTop: 20, overflow: "hidden" }}>
-                <View style={{ width: `${attend}%`, height: 8, backgroundColor: attend >= 90 ? "#22C55E" : attend >= 75 ? "#F59E0B" : "#EF4444", borderRadius: 4 }} />
+              <View style={{ width: "100%", height: 8, backgroundColor: BORDER, borderRadius: 4, marginTop: 20, overflow: "hidden" }}>
+                <View style={{ width: `${attend}%`, height: 8, backgroundColor: attend >= 90 ? GREEN : attend >= 75 ? AMBER : "#EF4444", borderRadius: 4 }} />
               </View>
             </View>
           </View>
@@ -592,12 +616,12 @@ export default function ParentChild() {
 
         {activeTab === "achievements" && (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 32, alignItems: "center", shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-              <Star size={40} color="#F59E0B" fill="#F59E0B" />
-              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: "#1C1C1E", marginTop: 16 }}>
+            <View style={{ backgroundColor: "#FFFFFF", borderRadius: 18, padding: 32, alignItems: "center", borderWidth: 1, borderColor: BORDER }}>
+              <Star size={40} color={AMBER} fill={AMBER} />
+              <Text style={{ fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT, marginTop: 16 }}>
                 {t("childTabAchievements")}
               </Text>
-              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "#8E8E93", marginTop: 8, textAlign: "center" }}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, marginTop: 8, textAlign: "center" }}>
                 {t("childReportsEmpty")}
               </Text>
             </View>

@@ -2,12 +2,12 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle, Path, Line } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState } from "react";
+import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   Filter,
   CalendarDays,
@@ -24,24 +24,26 @@ import { useStudentsStore } from "@/utils/students/store";
 import { useLessonsStore } from "@/utils/lessons/store";
 import { useReportsStore } from "@/utils/reports/store";
 import { useProgressStore } from "@/utils/progress/store";
+import PressableScale from "@/components/PressableScale";
 import { useT } from "@/utils/i18n";
 
-// ─── Palette ──────────────────────────────────────────────────────────────────
-const NAVY_GRAD = ["#22447A", "#152C51"];
-const SHEET  = "#F4F5F7";
+// ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
+const BLUE      = "#2563EB";
+const INDIGO    = "#4F46E5";
+const BLUE_50   = "#EFF6FF";
+const INDIGO_50 = "#EEF2FF";
 const CARD   = "#FFFFFF";
 const TEXT   = "#111827";
 const SUB    = "#8E93A1";
-const BLUE   = "#2563EB";
+const BORDER = "#E5E9F2";
 const GREEN  = "#22C55E";
-const ORANGE = "#F59E0B";
-const PURPLE = "#8B5CF6";
+const AMBER  = "#D97706";
 
 const SUBJECT_PALETTE = [
-  { c: "#2563EB", bg: "#E8EEFB" },
-  { c: "#22C55E", bg: "#E4F6EF" },
-  { c: "#8B5CF6", bg: "#F0EAFC" },
-  { c: "#F59E0B", bg: "#FDF1DF" },
+  { c: BLUE,      bg: BLUE_50 },
+  { c: GREEN,     bg: "#ECFDF5" },
+  { c: INDIGO,    bg: INDIGO_50 },
+  { c: AMBER,     bg: "#FFFBEB" },
   { c: "#EC4899", bg: "#FCE7F1" },
   { c: "#06B6D4", bg: "#E1F5FA" },
 ];
@@ -51,7 +53,7 @@ function subjectColors(name = "") {
   return SUBJECT_PALETTE[h % SUBJECT_PALETTE.length];
 }
 
-const AVATAR_COLORS = [BLUE, GREEN, ORANGE, "#EF4444", "#06B6D4", PURPLE, "#EC4899", "#0EA5E9"];
+const AVATAR_COLORS = [BLUE, GREEN, AMBER, "#EF4444", "#06B6D4", INDIGO, "#EC4899", "#0EA5E9"];
 function avatarBg(name = "") {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
@@ -127,7 +129,7 @@ function LineChart({ values, labels, width, height = 160, color = GREEN }) {
         {yTicks.map((t) => {
           const y = 10 + chartH * (1 - t / max);
           return (
-            <Line key={t} x1={padLeft} y1={y} x2={width - 8} y2={y} stroke="#EEF0F3" strokeWidth={1} />
+            <Line key={t} x1={padLeft} y1={y} x2={width - 8} y2={y} stroke="#F1F5F9" strokeWidth={1} />
           );
         })}
         <Path d={areaPath} fill={color} fillOpacity={0.12} stroke="none" />
@@ -165,7 +167,7 @@ function BarChart({ bars, width, height = 130 }) {
       {bars.map((b, i) => (
         <View key={i} style={{ alignItems: "center", gap: 6 }}>
           <Text style={{ fontSize: 9.5, fontFamily: "Inter_600SemiBold", color: SUB }}>{b.value}%</Text>
-          <View style={{ width: barW, height: Math.max(4, (b.value / 100) * height), borderRadius: 6, backgroundColor: b.value === 0 ? "#EEF0F3" : GREEN }} />
+          <View style={{ width: barW, height: Math.max(4, (b.value / 100) * height), borderRadius: 6, backgroundColor: b.value === 0 ? "#F1F5F9" : GREEN }} />
           <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: SUB }}>{b.label}</Text>
         </View>
       ))}
@@ -178,13 +180,24 @@ function BarChart({ bars, width, height = 130 }) {
 function ComingSoon({ t }) {
   return (
     <View style={{ alignItems: "center", paddingTop: 64, paddingHorizontal: 40 }}>
-      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: "#EEF0FF", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-        <TrendingUp size={32} color={PURPLE} />
+      <View style={{ width: 72, height: 72, borderRadius: 22, backgroundColor: INDIGO_50, alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+        <TrendingUp size={32} color={INDIGO} />
       </View>
       <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", lineHeight: 20 }}>
         {t("repComingSoon")}
       </Text>
     </View>
+  );
+}
+
+// ─── Section card wrapper ───────────────────────────────────────────────────────
+function Card({ children, delay = 0 }) {
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).duration(320)}>
+      <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: BORDER }}>
+        {children}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -267,8 +280,8 @@ export default function ReportsScreen() {
     return [
       { label: t("repBandExcellent"),    value: excellent, color: GREEN },
       { label: t("repBandGood"),         value: good,      color: BLUE },
-      { label: t("repBandSatisfactory"), value: okish,     color: ORANGE },
-      { label: t("repBandNeedsWork"),    value: needsWork, color: PURPLE },
+      { label: t("repBandSatisfactory"), value: okish,     color: AMBER },
+      { label: t("repBandNeedsWork"),    value: needsWork, color: INDIGO },
     ];
   }, [scored, t]);
 
@@ -299,144 +312,146 @@ export default function ReportsScreen() {
   ];
 
   const STATS = [
-    { icon: Users,         value: students.length,  label: t("repStatStudents") },
-    { icon: BookOpen,      value: lessons.length,    label: t("repStatLessons") },
-    { icon: CheckCircle2,  value: completedLessons,  label: t("repStatCompleted") },
-    { icon: TrendingUp,    value: `${avgScorePct}%`, label: t("repStatAvgScore") },
+    { icon: Users,         value: students.length,  label: t("repStatStudents"),  color: BLUE,   bg: BLUE_50 },
+    { icon: BookOpen,      value: lessons.length,    label: t("repStatLessons"),   color: GREEN,  bg: "#ECFDF5" },
+    { icon: CheckCircle2,  value: completedLessons,  label: t("repStatCompleted"), color: AMBER,  bg: "#FFFBEB" },
+    { icon: TrendingUp,    value: `${avgScorePct}%`, label: t("repStatAvgScore"),  color: INDIGO, bg: INDIGO_50 },
   ];
 
   const chartWidth = 340;
 
   return (
-    <View style={{ flex: 1, backgroundColor: SHEET }}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
-        {/* Fills the top overscroll/bounce gap with navy instead of the sheet's white */}
-        <View style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: NAVY_GRAD[0] }} />
-
-        {/* ══ NAVY HEADER ══════════════════════════════════════════════ */}
+    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingBottom: insets.bottom + 32 }} showsVerticalScrollIndicator={false}>
+        {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
+        <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
+        {/* ── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ── */}
         <LinearGradient
-          colors={NAVY_GRAD}
+          colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
+          locations={[0, 0.6, 1]}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0.4, y: 1 }}
+          end={{ x: 0, y: 1 }}
           style={{ paddingTop: insets.top + 12, paddingHorizontal: 20, paddingBottom: 20 }}
         >
           {/* logo row */}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
-              <GraduationCap size={19} color="#FFFFFF" strokeWidth={2} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" }}>
+              <GraduationCap size={18} color="#FFFFFF" strokeWidth={2} />
             </View>
             <View>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3, lineHeight: 19 }}>
+              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.3, lineHeight: 19 }}>
                 Jeff
               </Text>
-              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", letterSpacing: 0.3 }}>
+              <Text style={{ fontSize: 9, fontFamily: "Inter_400Regular", color: SUB, letterSpacing: 0.3 }}>
                 Colleges
               </Text>
             </View>
           </View>
 
           {/* title + buttons */}
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.5 }}>
+          <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <Text style={{ fontSize: 26, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.5 }}>
               {t("reportsTitle")}
             </Text>
             <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.12)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
-                <Filter size={17} color="#FFFFFF" strokeWidth={2} />
+              <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}>
+                <Filter size={17} color={BLUE} strokeWidth={2} />
                 <View style={{ position: "absolute", top: 8, right: 9, width: 6, height: 6, borderRadius: 3, backgroundColor: BLUE }} />
               </View>
-              <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.12)", borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
-                <CalendarDays size={17} color="#FFFFFF" strokeWidth={2} />
-                <View style={{ position: "absolute", top: 8, right: 9, width: 6, height: 6, borderRadius: 3, backgroundColor: ORANGE }} />
+              <View style={{ width: 40, height: 40, borderRadius: 13, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center" }}>
+                <CalendarDays size={17} color={BLUE} strokeWidth={2} />
+                <View style={{ position: "absolute", top: 8, right: 9, width: 6, height: 6, borderRadius: 3, backgroundColor: AMBER }} />
               </View>
             </View>
-          </View>
+          </Animated.View>
 
-          {/* tab toggle — dark pill container, white active segment */}
-          <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 15, padding: 4 }}>
+          {/* tab toggle — segmented control */}
+          <View style={{ flexDirection: "row", backgroundColor: "#FFFFFF", borderRadius: 14, padding: 4, borderWidth: 1, borderColor: BORDER }}>
             {TABS.map(({ id, label }) => {
               const active = activeTab === id;
               return (
-                <TouchableOpacity
+                <PressableScale
                   key={id}
                   onPress={() => setActiveTab(id)}
-                  activeOpacity={0.8}
+                  scaleTo={0.97}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: active }}
                   style={{
-                    flex: 1, paddingVertical: 10, borderRadius: 11, alignItems: "center",
-                    backgroundColor: active ? "#FFFFFF" : "transparent",
+                    flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: "center",
+                    backgroundColor: active ? BLUE : "transparent",
                   }}
                 >
-                  <Text numberOfLines={1} style={{ fontSize: 12.5, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium", color: active ? NAVY_GRAD[1] : "#FFFFFF" }}>
+                  <Text numberOfLines={1} style={{ fontSize: 12.5, fontFamily: active ? "Inter_700Bold" : "Inter_500Medium", color: active ? "#FFFFFF" : SUB }}>
                     {label}
                   </Text>
-                </TouchableOpacity>
+                </PressableScale>
               );
             })}
           </View>
 
           {/* date range + export row */}
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 13, paddingHorizontal: 14, height: 44 }}>
-              <CalendarDays size={15} color="rgba(255,255,255,0.75)" />
-              <Text numberOfLines={1} style={{ flex: 1, fontSize: 12.5, fontFamily: "Inter_500Medium", color: "#FFFFFF" }}>
+          <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
+            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFFFF", borderRadius: 13, borderWidth: 1, borderColor: BORDER, paddingHorizontal: 14, height: 44 }}>
+              <CalendarDays size={15} color={SUB} />
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 12.5, fontFamily: "Inter_500Medium", color: TEXT }}>
                 {rangeLabel}
               </Text>
-              <ChevronDown size={14} color="rgba(255,255,255,0.6)" />
+              <ChevronDown size={14} color={SUB} />
             </View>
-            <TouchableOpacity activeOpacity={0.8} style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFFFFF", borderRadius: 13, paddingHorizontal: 16, height: 44 }}>
-              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: NAVY_GRAD[1] }}>{t("repExport")}</Text>
-              <Download size={15} color={NAVY_GRAD[1]} />
-            </TouchableOpacity>
+            <PressableScale scaleTo={0.95} style={{ borderRadius: 13, overflow: "hidden" }}>
+              <LinearGradient colors={[BLUE, INDIGO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, height: 44 }}>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" }}>{t("repExport")}</Text>
+                <Download size={15} color="#FFFFFF" />
+              </LinearGradient>
+            </PressableScale>
           </View>
         </LinearGradient>
 
-        {/* ══ WHITE SHEET ══════════════════════════════════════════════ */}
-        <View style={{ flex: 1, backgroundColor: SHEET, borderTopLeftRadius: 26, borderTopRightRadius: 26, marginTop: -14, paddingTop: 20, paddingBottom: insets.bottom + 24 }}>
+        {/* ── SECTION 2 — Content (white) ── */}
+        <View style={{ paddingTop: 20 }}>
           {activeTab !== "overview" ? (
             <ComingSoon t={t} />
           ) : (
             <View style={{ paddingHorizontal: 20, gap: 16 }}>
 
               {/* ── Общая статистика ── */}
-              <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+              <Card delay={0}>
                 <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 16 }}>
                   {t("repGeneralStats")}
                 </Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 14 }}>
-                  {STATS.map(({ icon: Icon, value, label }, i) => {
-                    const sc = [ { c: BLUE, bg: "#E8EEFB" }, { c: GREEN, bg: "#E4F6EF" }, { c: ORANGE, bg: "#FDF1DF" }, { c: PURPLE, bg: "#F0EAFC" } ][i];
-                    return (
-                      <View key={i} style={{ width: "46%" }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                          <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: sc.bg, alignItems: "center", justifyContent: "center" }}>
-                            <Icon size={18} color={sc.c} strokeWidth={2} />
-                          </View>
-                          <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: TEXT }}>{value}</Text>
+                  {STATS.map(({ icon: Icon, value, label, color, bg }, i) => (
+                    <View key={i} style={{ width: "46%" }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+                          <Icon size={18} color={color} strokeWidth={2} />
                         </View>
-                        <Text style={{ fontSize: 11.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 6 }}>{label}</Text>
+                        <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: TEXT }}>{value}</Text>
                       </View>
-                    );
-                  })}
+                      <Text style={{ fontSize: 11.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 6 }}>{label}</Text>
+                    </View>
+                  ))}
                 </View>
-              </View>
+              </Card>
 
               {/* ── Динамика успеваемости ── */}
-              <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+              <Card delay={60}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                   <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repDynamicsTitle")}</Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F2F2F7", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
-                    <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: TEXT }}>{t("repWeekPeriod")}</Text>
-                    <ChevronDown size={12} color={SUB} />
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BLUE_50, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: BLUE }}>{t("repWeekPeriod")}</Text>
+                    <ChevronDown size={12} color={BLUE} />
                   </View>
                 </View>
                 <Text style={{ fontSize: 30, fontFamily: "Inter_700Bold", color: GREEN, marginTop: 8 }}>{avgScorePct}%</Text>
                 <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 12 }}>{t("repStatAvgScore")}</Text>
                 <LineChart values={trendValues} labels={trendLabels} width={chartWidth} />
-              </View>
+              </Card>
 
               {/* ── Успеваемость по предметам ── */}
               {bySubject.length > 0 && (
-                <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
+                <Card delay={120}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                     <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repBySubjectTitle")}</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
@@ -458,7 +473,7 @@ export default function ReportsScreen() {
                               <Text numberOfLines={1} style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: TEXT, marginBottom: 5 }}>
                                 {tSubject(subject)}
                               </Text>
-                              <View style={{ height: 5, backgroundColor: "#EEF0F3", borderRadius: 3, overflow: "hidden" }}>
+                              <View style={{ height: 5, backgroundColor: "#F1F5F9", borderRadius: 3, overflow: "hidden" }}>
                                 <View style={{ width: `${avg}%`, height: 5, backgroundColor: sc.c, borderRadius: 3 }} />
                               </View>
                             </View>
@@ -483,63 +498,61 @@ export default function ReportsScreen() {
                       ))}
                     </View>
                   </View>
-                </View>
+                </Card>
               )}
 
               {/* ── Посещаемость + Топ учеников ── */}
-              <View style={{ gap: 16 }}>
-                <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repAttendanceTitle")}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#F2F2F7", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
-                      <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: TEXT }}>{t("repWeekPeriod")}</Text>
-                      <ChevronDown size={12} color={SUB} />
-                    </View>
+              <Card delay={180}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repAttendanceTitle")}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: BLUE_50, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 }}>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: BLUE }}>{t("repWeekPeriod")}</Text>
+                    <ChevronDown size={12} color={BLUE} />
                   </View>
-                  <Text style={{ fontSize: 30, fontFamily: "Inter_700Bold", color: GREEN, marginTop: 8 }}>{avgAttendance}%</Text>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 16 }}>{t("repAvgAttendance")}</Text>
-                  <BarChart bars={attendanceBars} width={chartWidth} />
                 </View>
+                <Text style={{ fontSize: 30, fontFamily: "Inter_700Bold", color: GREEN, marginTop: 8 }}>{avgAttendance}%</Text>
+                <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB, marginBottom: 16 }}>{t("repAvgAttendance")}</Text>
+                <BarChart bars={attendanceBars} width={chartWidth} />
+              </Card>
 
-                <View style={{ backgroundColor: CARD, borderRadius: 20, padding: 18, shadowColor: "#0B1B3A", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 }}>
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repTopStudents")}</Text>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                      <Text style={{ fontSize: 12.5, fontFamily: "Inter_500Medium", color: BLUE }}>{t("repBySuccess")}</Text>
-                      <ChevronRight size={13} color={BLUE} />
-                    </View>
+              <Card delay={220}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT }}>{t("repTopStudents")}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                    <Text style={{ fontSize: 12.5, fontFamily: "Inter_500Medium", color: BLUE }}>{t("repBySuccess")}</Text>
+                    <ChevronRight size={13} color={BLUE} />
                   </View>
-                  {topStudents.length === 0 ? (
-                    <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", paddingVertical: 20 }}>
-                      {t("studentsEmptyTitle")}
-                    </Text>
-                  ) : (
-                    topStudents.map((s, i) => {
-                      const rank = i + 1;
-                      const pct = Math.round(s._score * 10);
-                      const displayName = tName(s.name);
-                      return (
-                        <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: i < topStudents.length - 1 ? 1 : 0, borderBottomColor: "#F1F2F5" }}>
-                          <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: RANK_COLORS[rank] ?? "#DCE3EC", alignItems: "center", justifyContent: "center" }}>
-                            <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{rank}</Text>
-                          </View>
-                          <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: avatarBg(s.name), alignItems: "center", justifyContent: "center" }}>
-                            <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials(displayName)}</Text>
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text numberOfLines={1} style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT }}>{displayName}</Text>
-                            {s.type ? (
-                              <Text style={{ fontSize: 11.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 1 }}>{tSubject(s.type)}</Text>
-                            ) : null}
-                          </View>
-                          <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: pct > 0 ? GREEN : SUB }}>{pct}%</Text>
-                          <ChevronRight size={15} color="#C6CBD5" />
-                        </View>
-                      );
-                    })
-                  )}
                 </View>
-              </View>
+                {topStudents.length === 0 ? (
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: SUB, textAlign: "center", paddingVertical: 20 }}>
+                    {t("studentsEmptyTitle")}
+                  </Text>
+                ) : (
+                  topStudents.map((s, i) => {
+                    const rank = i + 1;
+                    const pct = Math.round(s._score * 10);
+                    const displayName = tName(s.name);
+                    return (
+                      <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderTopWidth: i > 0 ? 1 : 0, borderTopColor: "#F1F5F9" }}>
+                        <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: RANK_COLORS[rank] ?? "#DCE3EC", alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{rank}</Text>
+                        </View>
+                        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: avatarBg(s.name), alignItems: "center", justifyContent: "center" }}>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: "#FFF" }}>{initials(displayName)}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text numberOfLines={1} style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: TEXT }}>{displayName}</Text>
+                          {s.type ? (
+                            <Text style={{ fontSize: 11.5, fontFamily: "Inter_400Regular", color: SUB, marginTop: 1 }}>{tSubject(s.type)}</Text>
+                          ) : null}
+                        </View>
+                        <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: pct > 0 ? GREEN : SUB }}>{pct}%</Text>
+                        <ChevronRight size={15} color="#C6CBD5" />
+                      </View>
+                    );
+                  })
+                )}
+              </Card>
             </View>
           )}
         </View>

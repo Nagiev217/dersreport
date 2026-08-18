@@ -11,7 +11,7 @@ export function toDateStr(d) {
 // dayOfWeek uses JS getDay() convention: 0=Sun, 1=Mon, ..., 6=Sat
 export const DAYS_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 export const DAYS_FULL = [
-  "Воскресенье", "Понедельник", "Вторник", "Среда",ф
+  "Воскресенье", "Понедельник", "Вторник", "Среда",
   "Четверг", "Пятница", "Суббота",
 ];
 
@@ -19,9 +19,23 @@ export const FREQ_OPTIONS = [
   { value: "weekly", label: "Еженедельно" },
   { value: "biweekly", label: "Раз в 2 нед." },
   { value: "monthly", label: "Ежемесячно" },
+  { value: "odd", label: "Нечётные дни" },
+  { value: "even", label: "Чётные дни" },
 ];
 
+// odd/even = lessons on odd/even calendar days of the month (common AZ school
+// convention), ignoring dayOfWeek. All other frequencies step by a fixed
+// number of days from the first matching weekday.
 export function generateLessonsForSchedule(schedule) {
+  const start = new Date(schedule.startDate + "T12:00:00");
+  const endDate = schedule.endDate
+    ? new Date(schedule.endDate + "T23:59:59")
+    : null;
+  const maxCount = schedule.lessonsCount ?? 52;
+  const baseTs = 1750100000000 + (schedule.id.charCodeAt(4) ?? 0);
+  const isParity = schedule.frequency === "odd" || schedule.frequency === "even";
+  const wantOdd = schedule.frequency === "odd";
+
   const freqDays =
     schedule.frequency === "weekly" ? 7
     : schedule.frequency === "biweekly" ? 14
@@ -29,25 +43,26 @@ export function generateLessonsForSchedule(schedule) {
     : typeof schedule.frequency === "number" ? schedule.frequency
     : 7;
 
-  const start = new Date(schedule.startDate + "T12:00:00");
   let current = new Date(start.getTime());
-
-  // Advance to first occurrence of the target day of week
-  while (current.getDay() !== schedule.dayOfWeek) {
-    current.setDate(current.getDate() + 1);
+  if (isParity) {
+    // Advance to the first day matching the requested parity.
+    while (current.getDate() % 2 !== (wantOdd ? 1 : 0)) {
+      current.setDate(current.getDate() + 1);
+    }
+  } else {
+    // Advance to first occurrence of the target day of week.
+    while (current.getDay() !== schedule.dayOfWeek) {
+      current.setDate(current.getDate() + 1);
+    }
   }
-
-  const endDate = schedule.endDate
-    ? new Date(schedule.endDate + "T23:59:59")
-    : null;
-  const maxCount = schedule.lessonsCount ?? 52;
 
   const lessons = [];
   let count = 0;
-  const baseTs = 1750100000000 + (schedule.id.charCodeAt(4) ?? 0);
 
   while (count < maxCount) {
     if (endDate && current > endDate) break;
+    // Safety bound for parity mode (steps day-by-day, could run long).
+    if (isParity && (current.getTime() - start.getTime()) > 366 * 86400000) break;
 
     lessons.push({
       id: `sched-${schedule.id}-${count}`,
@@ -66,7 +81,16 @@ export function generateLessonsForSchedule(schedule) {
     });
 
     count++;
-    current.setDate(current.getDate() + freqDays);
+    if (isParity) {
+      // Step to the next day of the same parity: +2 keeps parity within a
+      // month; at month boundaries the parity can flip, so re-align.
+      current.setDate(current.getDate() + 2);
+      while (current.getDate() % 2 !== (wantOdd ? 1 : 0)) {
+        current.setDate(current.getDate() + 1);
+      }
+    } else {
+      current.setDate(current.getDate() + freqDays);
+    }
   }
 
   return lessons;
