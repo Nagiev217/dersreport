@@ -58,6 +58,35 @@ export async function registerParent(uid, { firstName, lastName, email }) {
   return parentCode;
 }
 
+// Boss/Admin can teach too (the dashboard's "Обучение" tile routes them into
+// the teacher UI), but createManagedAccount only builds a teachers/{uid} doc
+// for role 'teacher'. Without that doc they are invisible to every
+// cross-teacher Cloud Function — those all iterate collection('teachers') — so
+// their students never show up in Финансы and their lessons never show up in
+// Расписание. Writing a subcollection under teachers/{uid} does NOT create the
+// parent doc, so it has to be created explicitly.
+//
+// Called on login so existing boss/admin accounts get backfilled, not just
+// newly created ones. The existence check keeps it to one read per login
+// instead of a write every time.
+export async function ensureTeachingProfile(uid, { firstName, lastName, email }) {
+  if (!IS_FIREBASE_READY || !db) return;
+  try {
+    const snap = await getDoc(doc(db, 'teachers', uid));
+    if (snap.exists()) return;
+    const now = Date.now();
+    await setDoc(doc(db, 'teachers', uid), {
+      uid,
+      firstName: firstName ?? '',
+      lastName: lastName ?? '',
+      email: email ?? '',
+      subjects: [], lessonPrice: null, description: '',
+      photoURL: null, fcmToken: null,
+      createdAt: now, updatedAt: now,
+    });
+  } catch {}
+}
+
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 export async function getUserDoc(uid) {
@@ -114,7 +143,14 @@ export async function updateParentProfile(uid, data) {
 
 export async function saveFcmToken(uid, role, token) {
   if (!IS_FIREBASE_READY || !db || !token) return;
-  const coll = role === 'teacher' ? 'teachers' : role === 'student' ? 'students' : 'parents';
+  // Boss/Admin store their token alongside teachers: they hold teaching data
+  // under teachers/{uid} and notifyTeacherScheduleChange reads the token from
+  // there. Defaulting them to 'parents' (as the old ternary did) created a
+  // phantom parent doc that then showed up in the Parents roster.
+  const coll =
+    role === 'teacher' || role === 'boss' || role === 'admin' ? 'teachers'
+    : role === 'student' ? 'students'
+    : 'parents';
   try {
     await setDoc(doc(db, coll, uid), { fcmToken: token, updatedAt: Date.now() }, { merge: true });
   } catch {}

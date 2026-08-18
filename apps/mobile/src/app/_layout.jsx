@@ -15,9 +15,9 @@ import {
 
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, IS_FIREBASE_READY } from "@/utils/firebase/config";
-import { getUserDoc } from "@/utils/firebase/users";
+import { getUserDoc, ensureTeachingProfile } from "@/utils/firebase/users";
 import { prefetchAdminDashboard } from "@/utils/firebase/adminAccounts";
-import { loadAllStores, saveStore } from "@/utils/firebase/firestore";
+import { loadAllStores, saveStore, subscribeToStore } from "@/utils/firebase/firestore";
 import { useStudentsStore } from "@/utils/students/store";
 import { useLessonsStore } from "@/utils/lessons/store";
 import { usePaymentsStore } from "@/utils/payments/store";
@@ -58,6 +58,11 @@ const IMMEDIATE_STORES = new Set(["students", "lessons"]);
 // Syncs teacher stores to Firestore on change, loads on login
 function useFirebaseSync() {
   const isLoadingRef = useRef(false);
+  // Set while a remote snapshot is being written into a store. Zustand
+  // notifies subscribers synchronously inside setState, so this flag is still
+  // up when debouncedSave runs — which stops us from immediately echoing
+  // server data back as a client write.
+  const applyingRemoteRef = useRef(false);
   const timersRef = useRef({});
   // Bumped on every auth-state change so an in-flight loadIntoStores/getUserDoc
   // from a superseded sign-in (e.g. the dev account switcher's fast
@@ -73,12 +78,22 @@ function useFirebaseSync() {
     let reportsPushedUp = false;
 
     const debouncedSave = (uid, storeName, data) => {
-      if (isLoadingRef.current) return;
+      if (isLoadingRef.current || applyingRemoteRef.current) return;
       clearTimeout(timersRef.current[storeName]);
       // Critical stores sync immediately; others use debounce
       const delay = IMMEDIATE_STORES.has(storeName) ? 0 : SYNC_DEBOUNCE;
-      timersRef.current[storeName] = setTimeout(() => {
-        saveStore(uid, storeName, data);
+      timersRef.current[storeName] = setTimeout(async () => {
+        // The entry doubles as the "local edits still in flight" flag the
+        // remote listener checks, so it must survive until the write lands.
+        // Clearing it earlier would let a server snapshot overwrite the store
+        // while this write is still carrying the older `data` closure — which
+        // would then land and undo the server's change. It must also be
+        // cleared eventually, or remote updates stay blocked forever.
+        try {
+          await saveStore(uid, storeName, data);
+        } finally {
+          delete timersRef.current[storeName];
+        }
       }, delay);
     };
 
@@ -173,6 +188,39 @@ function useFirebaseSync() {
       );
     };
 
+    // Pulls server-side writes down into the local stores. Only the three
+    // stores Cloud Functions actually write are watched: Admin creates
+    // schedules (which also generate lessons) and records payments. Without
+    // these listeners the client would keep pushing its stale local array over
+    // them on the next edit — the admin's work would just disappear.
+    //
+    // Not a general multi-device sync: the other stores only ever have one
+    // writer (this client), so a listener there would cost reads for nothing.
+    const REMOTE_WATCHED_STORES = [
+      ["lessons",   (data) => useLessonsStore.setState({ lessons: data })],
+      ["schedules", (data) => useScheduleStore.setState({ schedules: data })],
+      ["payments",  (data) => usePaymentsStore.setState({ payments: data })],
+    ];
+
+    const setupRemoteStoreListeners = (uid) => {
+      REMOTE_WATCHED_STORES.forEach(([storeName, apply]) => {
+        unsubStores.push(
+          subscribeToStore(uid, storeName, (data) => {
+            // A pending debounced write holds newer local edits — letting the
+            // server snapshot land would revert what the user just did. The
+            // queued write wins and will carry the merge forward.
+            if (timersRef.current[storeName]) return;
+            applyingRemoteRef.current = true;
+            try {
+              apply(data);
+            } finally {
+              applyingRemoteRef.current = false;
+            }
+          })
+        );
+      });
+    };
+
     const loadIntoStores = async (uid, mySession) => {
       isLoadingRef.current = true;
       try {
@@ -227,13 +275,31 @@ function useFirebaseSync() {
       // instead of only starting once that screen mounts.
       if (userDoc?.role === "boss" || userDoc?.role === "admin") {
         prefetchAdminDashboard();
-        return;
       }
-      if (userDoc?.role !== "teacher") return;
+
+      // Boss/Admin fall through to the teacher sync on purpose: the dashboard's
+      // first quick-access tile ("Обучение") routes them into /(tabs), so they
+      // can hold their own students, lessons and reports under their uid just
+      // like a teacher. Skipping them here meant that data lived only in this
+      // device's AsyncStorage — never uploaded, never restored after a
+      // reinstall, and invisible to every cross-teacher Cloud Function.
+      // Parents/students genuinely never own this shape of data (they read
+      // through parentRealtime.js/studentRealtime.js), so they still bail out.
+      const role = userDoc?.role;
+      if (role !== "teacher" && role !== "boss" && role !== "admin") return;
+
+      // Backfills teachers/{uid} for boss/admin accounts created before they
+      // could teach — without it their students stay invisible to the
+      // cross-teacher Cloud Functions behind Расписание and Финансы.
+      if (role === "boss" || role === "admin") {
+        await ensureTeachingProfile(user.uid, userDoc ?? {});
+        if (sessionRef.current !== mySession) return;
+      }
 
       await loadIntoStores(user.uid, mySession);
       if (sessionRef.current !== mySession) return; // superseded mid-load
       setupStoreSubscriptions(user.uid);
+      setupRemoteStoreListeners(user.uid);
       setupReportsSync(user.uid);
     });
 

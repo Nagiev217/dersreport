@@ -12,8 +12,11 @@ export const ROLES = {
 
 export const isStaffRole = (role) => role === ROLES.BOSS || role === ROLES.ADMIN;
 
-// Boss sees finance/payments data; Admin does not.
-export const canViewFinance = (role) => role !== ROLES.ADMIN;
+// Teacher salaries / payroll — Boss only.
+// Written as an explicit equality, not `role !== ADMIN`: that older form also
+// returned true for teacher/parent/student and for a null role still loading,
+// which flashed the Зарплаты tile to admins before their role resolved.
+export const canViewFinance = (role) => role === ROLES.BOSS;
 
 // Only Boss can create teacher/parent/admin accounts.
 export const canManageAccounts = (role) => role === ROLES.BOSS;

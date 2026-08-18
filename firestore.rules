@@ -67,13 +67,28 @@ service cloud.firestore {
       allow read, write: if isOwner(teacherUid);
 
       // A teacher's data (students/lessons/payments/schedules/progress/
-      // reports/groups). Owner has full access; a parent linked to this
-      // teacher (see parentAccess below) can read only. A linked student
-      // (studentAccess below) can read everything except payments.
+      // reports/groups). Owner has full access; linked parents and students
+      // get a read-only allow-list of just the stores their app actually
+      // subscribes to (see utils/firebase/parentRealtime.js and
+      // studentRealtime.js).
+      //
+      // The allow-list replaces a blanket "any linked parent may read every
+      // store": that also handed them `payments` (every family's payment
+      // records under this teacher), `parents` (other parents' contact
+      // details), plus homework/writing/groups they never open.
+      //
+      // KNOWN REMAINING EXPOSURE: `students` and `lessons` are whole-array
+      // documents, and Firestore cannot grant a partial document read — so a
+      // linked parent still receives the teacher's other families' rows and
+      // the client filters them out for display. Closing that properly means
+      // migrating these two stores to per-record subcollections the way
+      // `reports` (below) already was, so each row can be matched against the
+      // caller's linkage doc.
       match /stores/{storeName} {
         allow read: if isOwner(teacherUid)
-          || (isSignedIn() && exists(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid)))
-          || (isSignedIn() && storeName != 'payments'
+          || (isSignedIn() && storeName in ['students', 'lessons']
+              && exists(/databases/$(database)/documents/parentAccess/$(request.auth.uid)/teachers/$(teacherUid)))
+          || (isSignedIn() && storeName in ['students', 'lessons', 'progress', 'exams']
               && exists(/databases/$(database)/documents/studentAccess/$(request.auth.uid)/teachers/$(teacherUid)));
         // Reports moved to the subcollection below; the old whole-array doc is
         // frozen (readable for rollback, never written again).

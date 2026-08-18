@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput, Modal,
   ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Alert,
@@ -79,20 +79,24 @@ export default function AdminPayments() {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // `showSpinner` is false when the list already answers the question being
+  // Which period the currently displayed rows belong to. Deliberately a ref,
+  // not `data.period`: reading state here would put it in the useFocusEffect
+  // dependency list, and since loading updates it, the effect would re-fire
+  // and issue a second request for every single load.
+  const shownPeriodRef = useRef(null);
+
+  // The spinner is skipped when the list already answers the question being
   // asked (same period) — refetching in the background beats blanking the
   // screen, which read as "slow" even when the cache answered instantly.
-  const load = useCallback((p, { showSpinner = true } = {}) => {
-    if (showSpinner) setLoading(true);
+  const load = useCallback((p, { showSpinner } = {}) => {
+    if (showSpinner ?? shownPeriodRef.current !== p) setLoading(true);
     return getStudentPayments(p)
-      .then((res) => setData(res))
+      .then((res) => { shownPeriodRef.current = res.period; setData(res); })
       .catch(() => {})
       .finally(() => { setLoading(false); setRefreshing(false); });
   }, []);
 
-  useFocusEffect(useCallback(() => {
-    load(period, { showSpinner: data?.period !== period });
-  }, [load, period, data?.period]));
+  useFocusEffect(useCallback(() => { load(period); }, [load, period]));
 
   const onRefresh = () => { clearAdminCache(); setRefreshing(true); load(period); };
   const goPeriod = (delta) => { const p = shiftPeriod(period, delta); setPeriod(p); load(p); };

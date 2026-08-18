@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -89,20 +89,24 @@ export default function AdminSchedule() {
   const daysShort = days(true);
   const today = todayStr();
 
-  const load = useCallback(() => {
-    return getOrgSchedule(selectedDate)
-      .then((d) => setData(d))
-      .finally(() => { setLoading(false); setRefreshing(false); });
-  }, [selectedDate]);
+  // Which day the currently displayed events belong to. Deliberately a ref,
+  // not `data.date`: reading state here would put it in the useFocusEffect
+  // dependency list, and since loading updates it, the effect would re-fire
+  // and issue a second request for every single load.
+  const shownDateRef = useRef(null);
 
   // Only blank the list for a spinner when what's on screen doesn't answer the
   // question being asked — i.e. nothing loaded yet, or a different day. Coming
   // back to this tab used to blank it every time, which read as "slow" even
   // when the 60s cache was about to answer instantly.
-  useFocusEffect(useCallback(() => {
-    if (data?.date !== selectedDate) setLoading(true);
-    load();
-  }, [load, data?.date, selectedDate]));
+  const load = useCallback(() => {
+    if (shownDateRef.current !== selectedDate) setLoading(true);
+    return getOrgSchedule(selectedDate)
+      .then((d) => { shownDateRef.current = d.date; setData(d); })
+      .finally(() => { setLoading(false); setRefreshing(false); });
+  }, [selectedDate]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onRefresh = () => { clearAdminCache(); setRefreshing(true); load(); };
 

@@ -25,6 +25,19 @@ export const FREQ_OPTIONS = [
 
 // odd/even = lessons on odd/even calendar days of the month (common AZ school
 // convention), ignoring dayOfWeek. All other frequencies step by a fixed
+// Deterministic per-schedule base for generated lessons' createdAt, so
+// regenerating a schedule doesn't churn their ordering. Hashes the whole id:
+// the previous version read a single character at index 4, which for ids
+// shaped `sch-<timestamp>-…` is always the first digit of Date.now() — a
+// constant in practice, so lessons from different schedules were handed
+// identical createdAt values. Scaled by 100 to leave room for the per-lesson
+// index added on top (schedules cap out at 52 lessons).
+function scheduleBaseTs(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 1000000;
+  return 1750100000000 + h * 100;
+}
+
 // number of days from the first matching weekday.
 export function generateLessonsForSchedule(schedule) {
   const start = new Date(schedule.startDate + "T12:00:00");
@@ -32,7 +45,7 @@ export function generateLessonsForSchedule(schedule) {
     ? new Date(schedule.endDate + "T23:59:59")
     : null;
   const maxCount = schedule.lessonsCount ?? 52;
-  const baseTs = 1750100000000 + (schedule.id.charCodeAt(4) ?? 0);
+  const baseTs = scheduleBaseTs(schedule.id);
   const isParity = schedule.frequency === "odd" || schedule.frequency === "even";
   const wantOdd = schedule.frequency === "odd";
 

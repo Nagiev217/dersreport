@@ -56,7 +56,11 @@ async function buildRoleDocs(batch, db, uid, role, firstName, lastName, normaliz
   let parentCode = null;
   let studentCode = null;
 
-  if (role === 'teacher') {
+  // 'admin' is included with 'teacher': admins (like the boss) can teach via
+  // the dashboard's "Обучение" tile, and every cross-teacher aggregate in this
+  // file iterates collection('teachers') — without this doc their students and
+  // lessons would be invisible to Расписание and Финансы.
+  if (role === 'teacher' || role === 'admin') {
     batch.set(db.collection('teachers').doc(uid), {
       uid,
       firstName: firstName.trim(),
@@ -121,9 +125,16 @@ async function requireStaffCaller(request, allowedRoles) {
   if (!callerUid) throw new HttpsError('unauthenticated', 'Требуется авторизация');
   const db = getFirestore();
   const callerDoc = await db.collection('users').doc(callerUid).get();
-  const callerRole = callerDoc.data()?.role;
+  const callerData = callerDoc.data();
+  const callerRole = callerData?.role;
   if (!allowedRoles.includes(callerRole)) {
     throw new HttpsError('permission-denied', 'Недостаточно прав');
+  }
+  // Disabling an Auth user blocks future sign-ins but does NOT invalidate ID
+  // tokens already issued — without this check a just-disabled Boss/Admin kept
+  // full API access until their token expired (up to an hour).
+  if (callerData?.disabled === true) {
+    throw new HttpsError('permission-denied', 'Аккаунт отключён');
   }
   return { callerUid, callerRole, db };
 }
@@ -366,6 +377,13 @@ exports.setAccountEnabled = onCall({ invoker: 'public' }, async (request) => {
   }
 
   await getAuth().updateUser(uid, { disabled });
+  // updateUser({disabled:true}) only blocks new sign-ins; already-issued ID
+  // tokens stay valid for up to an hour, and Firestore rules honour them.
+  // Revoking refresh tokens cuts the session off at the next token refresh
+  // instead of letting it run to expiry.
+  if (disabled) {
+    await getAuth().revokeRefreshTokens(uid).catch(() => {});
+  }
   await db.collection('users').doc(uid).set({ disabled, updatedAt: Date.now() }, { merge: true });
 
   return { success: true };
@@ -563,13 +581,17 @@ exports.deletePayment = onCall({ invoker: 'public' }, async (request) => {
   const { teacherUid, paymentId } = request.data ?? {};
   if (!teacherUid || !paymentId) throw new HttpsError('invalid-argument', 'teacherUid и paymentId обязательны');
 
+  // Transactional: the whole array is rewritten with merge:false, so a plain
+  // read-then-write would let two concurrent calls each start from the same
+  // snapshot and have the later write silently discard the earlier one.
   const ref = db.collection('teachers').doc(teacherUid).collection('stores').doc('payments');
-  const snap = await ref.get();
-  const payments = snap.exists ? (snap.data().data ?? []) : [];
-  const filtered = payments.filter((p) => p.id !== paymentId);
-  if (filtered.length === payments.length) throw new HttpsError('not-found', 'Платёж не найден');
-
-  await ref.set({ data: filtered, ts: Date.now() }, { merge: false });
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const payments = snap.exists ? (snap.data().data ?? []) : [];
+    const filtered = payments.filter((p) => p.id !== paymentId);
+    if (filtered.length === payments.length) throw new HttpsError('not-found', 'Платёж не найден');
+    tx.set(ref, { data: filtered, ts: Date.now() }, { merge: false });
+  });
   return { success: true };
 });
 
@@ -677,34 +699,41 @@ exports.addStudentPayment = onCall({ invoker: 'public' }, async (request) => {
   }
 
   const storesRef = db.collection('teachers').doc(teacherUid).collection('stores');
-  const [studentsSnap, paymentsSnap] = await Promise.all([
-    storesRef.doc('students').get(),
-    storesRef.doc('payments').get(),
-  ]);
-  const students = studentsSnap.exists ? (studentsSnap.data().data ?? []) : [];
-  const student = students.find((s) => String(s.id) === String(studentId));
-  if (!student) throw new HttpsError('not-found', 'Ученик не найден у этого учителя');
+  const studentsRef = storesRef.doc('students');
+  const paymentsRef = storesRef.doc('payments');
 
-  const payments = paymentsSnap.exists ? (paymentsSnap.data().data ?? []) : [];
+  // The id is built outside the transaction body on purpose: that body can be
+  // retried on contention, and regenerating the id per attempt would make the
+  // value returned to the client depend on which attempt won.
   const now = Date.now();
-  const record = {
-    id: `pay-${now}-${Math.random().toString(36).slice(2, 8)}`,
-    studentId: String(studentId),
-    studentName: student.name ?? '',
-    amount: amt,
-    date,
-    period,
-    method,
-    note: typeof note === 'string' ? note.slice(0, 200) : '',
-    createdAt: now,
-  };
+  const paymentId = `pay-${now}-${Math.random().toString(36).slice(2, 8)}`;
 
-  await storesRef.doc('payments').set(
-    { data: [...payments, record], ts: now },
-    { merge: false }
-  );
+  // Transactional for the same reason as deletePayment: appending to a
+  // whole-array doc with merge:false loses one of two concurrent writes.
+  await db.runTransaction(async (tx) => {
+    const [studentsSnap, paymentsSnap] = await tx.getAll(studentsRef, paymentsRef);
 
-  return { success: true, paymentId: record.id };
+    const students = studentsSnap.exists ? (studentsSnap.data().data ?? []) : [];
+    const student = students.find((s) => String(s.id) === String(studentId));
+    if (!student) throw new HttpsError('not-found', 'Ученик не найден у этого учителя');
+
+    const payments = paymentsSnap.exists ? (paymentsSnap.data().data ?? []) : [];
+    const record = {
+      id: paymentId,
+      studentId: String(studentId),
+      studentName: student.name ?? '',
+      amount: amt,
+      date,
+      period,
+      method,
+      note: typeof note === 'string' ? note.slice(0, 200) : '',
+      createdAt: now,
+    };
+
+    tx.set(paymentsRef, { data: [...payments, record], ts: now }, { merge: false });
+  });
+
+  return { success: true, paymentId };
 });
 
 exports.getFinanceOverview = onCall({ invoker: 'public' }, async (request) => {
@@ -873,6 +902,23 @@ exports.getTeacherWorkload = onCall({ invoker: 'public' }, async (request) => {
 // links: student.linkedStudentUid (the student's account uid) and the parents
 // store's {appUserId, studentIds}.
 
+// Profile collections that can hold an Expo push token in `fcmToken`.
+const TOKEN_COLLECTIONS = ['teachers', 'parents', 'students'];
+
+// Clears a token that Expo has told us is dead. Left in place it would be
+// retried on every future notification forever, and — worse — Expo recycles
+// tokens, so a stale one can start delivering another person's notifications
+// to whoever inherited it.
+async function purgeExpoToken(token) {
+  const db = getFirestore();
+  await Promise.all(
+    TOKEN_COLLECTIONS.map(async (coll) => {
+      const snap = await db.collection(coll).where('fcmToken', '==', token).get();
+      await Promise.all(snap.docs.map((d) => d.ref.update({ fcmToken: null })));
+    })
+  ).catch(() => {});
+}
+
 async function sendExpoPush(messages) {
   const valid = messages.filter((m) => typeof m.to === 'string' && m.to.startsWith('Expo'));
   if (valid.length === 0) return;
@@ -880,11 +926,21 @@ async function sendExpoPush(messages) {
   for (let i = 0; i < valid.length; i += 100) {
     const chunk = valid.slice(i, i + 100);
     try {
-      await fetch('https://exp.host/--/api/v2/push/send', {
+      const res = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(chunk),
       });
+      // The HTTP call succeeding says nothing about delivery: Expo reports
+      // per-message outcomes in the body, positionally matching the request.
+      // Previously the response was discarded, so dead tokens were never
+      // noticed and simply accumulated.
+      const body = await res.json().catch(() => null);
+      const tickets = Array.isArray(body?.data) ? body.data : [];
+      const dead = tickets
+        .map((ticket, idx) => (ticket?.details?.error === 'DeviceNotRegistered' ? chunk[idx]?.to : null))
+        .filter(Boolean);
+      await Promise.all([...new Set(dead)].map(purgeExpoToken));
     } catch (e) {
       console.error('Expo push send failed:', e.message);
     }
@@ -972,6 +1028,10 @@ exports.setTeacherSalary = onCall({ invoker: 'public' }, async (request) => {
   if (!Number.isFinite(rate) || rate < 0 || rate > 100000) {
     throw new HttpsError('invalid-argument', 'salaryRate должен быть числом от 0 до 100000');
   }
+  // Without this check a typo'd uid would be happily created by set(merge:true)
+  // as a brand-new teachers/{uid} doc, and that phantom teacher would then show
+  // up in every aggregate here (payroll, workload, schedule, payments).
+  await requireTeachingAccount(db, teacherUid);
   await db.collection('teachers').doc(teacherUid).set(
     { salaryType, salaryRate: rate, updatedAt: Date.now() },
     { merge: true }
@@ -1025,11 +1085,19 @@ function scheduleDateStr(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Mirrors scheduleBaseTs in apps/mobile/src/utils/schedule/store.js — see the
+// comment there for why the whole id is hashed rather than one character read.
+function scheduleBaseTs(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 1000000;
+  return 1750100000000 + h * 100;
+}
+
 function generateLessonsForSchedule(schedule) {
   const start = new Date(schedule.startDate + 'T12:00:00');
   const endDate = schedule.endDate ? new Date(schedule.endDate + 'T23:59:59') : null;
   const maxCount = schedule.lessonsCount ?? 52;
-  const baseTs = 1750100000000 + (schedule.id.charCodeAt(4) ?? 0);
+  const baseTs = scheduleBaseTs(schedule.id);
   const isParity = schedule.frequency === 'odd' || schedule.frequency === 'even';
   const wantOdd = schedule.frequency === 'odd';
 
@@ -1156,8 +1224,8 @@ function scheduleStoreRefs(db, teacherUid) {
   return { schedulesRef: base.doc('schedules'), lessonsRef: base.doc('lessons') };
 }
 
-async function readScheduleStores(schedulesRef, lessonsRef) {
-  const [schedulesSnap, lessonsSnap] = await Promise.all([schedulesRef.get(), lessonsRef.get()]);
+async function readScheduleStores(tx, schedulesRef, lessonsRef) {
+  const [schedulesSnap, lessonsSnap] = await tx.getAll(schedulesRef, lessonsRef);
   return {
     schedules: schedulesSnap.exists ? (schedulesSnap.data().data ?? []) : [],
     lessons: lessonsSnap.exists ? (lessonsSnap.data().data ?? []) : [],
@@ -1202,19 +1270,29 @@ exports.adminCreateTeacherSchedule = onCall({ invoker: 'public' }, async (reques
   const newLessons = newSchedules.flatMap((s) => generateLessonsForSchedule(s));
 
   const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
-  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
 
-  const conflicts = findScheduleConflicts(newLessons, existingLessons);
-  if (conflicts.length > 0 && !force) {
+  // Transactional so a concurrent write can't be lost, and so the conflict
+  // check is made against the same snapshot that the write is based on —
+  // previously another admin could insert a colliding lesson in the gap
+  // between the check and the commit. Returning early without writing simply
+  // commits nothing.
+  const conflicts = await db.runTransaction(async (tx) => {
+    const { schedules: existingSchedules, lessons: existingLessons } =
+      await readScheduleStores(tx, schedulesRef, lessonsRef);
+
+    const found = findScheduleConflicts(newLessons, existingLessons);
+    if (found.length > 0 && !force) return found;
+
+    tx.set(schedulesRef, { data: [...existingSchedules, ...newSchedules], ts: now }, { merge: false });
+    tx.set(lessonsRef, { data: [...existingLessons, ...newLessons], ts: now }, { merge: false });
+    return null;
+  });
+
+  if (conflicts) {
     return {
       conflicts: conflicts.map((c) => ({ date: c.lesson.date, time: c.lesson.time, conflictWith: c.conflictWith.subject ?? '' })),
     };
   }
-
-  const batch = db.batch();
-  batch.set(schedulesRef, { data: [...existingSchedules, ...newSchedules], ts: now }, { merge: false });
-  batch.set(lessonsRef, { data: [...existingLessons, ...newLessons], ts: now }, { merge: false });
-  await batch.commit();
 
   const dayLabels = days.filter((d) => d !== null).map(scheduleDayLabel).join(', ');
   await notifyTeacherScheduleChange(
@@ -1244,12 +1322,6 @@ exports.adminUpdateTeacherSchedule = onCall({ invoker: 'public' }, async (reques
   }
 
   const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
-  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
-
-  if (!existingSchedules.some((s) => s.id === scheduleId)) {
-    throw new HttpsError('not-found', 'Расписание не найдено');
-  }
-
   const now = Date.now();
   const updatedSchedule = {
     id: scheduleId, studentIds, studentNames: studentNames ?? [],
@@ -1257,23 +1329,32 @@ exports.adminUpdateTeacherSchedule = onCall({ invoker: 'public' }, async (reques
     format, startDate, endDate: endDate || null,
     lessonsCount: lessonsCount ?? null, frequency, createdAt: now,
   };
-
-  const otherLessons = existingLessons.filter((l) => l.scheduleId !== scheduleId);
   const newLessons = generateLessonsForSchedule(updatedSchedule);
 
-  const conflicts = findScheduleConflicts(newLessons, otherLessons);
-  if (conflicts.length > 0 && !force) {
+  // Transactional — same reasoning as adminCreateTeacherSchedule.
+  const conflicts = await db.runTransaction(async (tx) => {
+    const { schedules: existingSchedules, lessons: existingLessons } =
+      await readScheduleStores(tx, schedulesRef, lessonsRef);
+
+    if (!existingSchedules.some((s) => s.id === scheduleId)) {
+      throw new HttpsError('not-found', 'Расписание не найдено');
+    }
+
+    const otherLessons = existingLessons.filter((l) => l.scheduleId !== scheduleId);
+    const found = findScheduleConflicts(newLessons, otherLessons);
+    if (found.length > 0 && !force) return found;
+
+    const updatedSchedules = existingSchedules.map((s) => (s.id === scheduleId ? updatedSchedule : s));
+    tx.set(schedulesRef, { data: updatedSchedules, ts: now }, { merge: false });
+    tx.set(lessonsRef, { data: [...otherLessons, ...newLessons], ts: now }, { merge: false });
+    return null;
+  });
+
+  if (conflicts) {
     return {
       conflicts: conflicts.map((c) => ({ date: c.lesson.date, time: c.lesson.time, conflictWith: c.conflictWith.subject ?? '' })),
     };
   }
-
-  const updatedSchedules = existingSchedules.map((s) => (s.id === scheduleId ? updatedSchedule : s));
-
-  const batch = db.batch();
-  batch.set(schedulesRef, { data: updatedSchedules, ts: now }, { merge: false });
-  batch.set(lessonsRef, { data: [...otherLessons, ...newLessons], ts: now }, { merge: false });
-  await batch.commit();
 
   await notifyTeacherScheduleChange(
     db, teacherUid,
@@ -1292,18 +1373,22 @@ exports.adminDeleteTeacherSchedule = onCall({ invoker: 'public' }, async (reques
   if (!scheduleId) throw new HttpsError('invalid-argument', 'scheduleId обязателен');
 
   const { schedulesRef, lessonsRef } = scheduleStoreRefs(db, teacherUid);
-  const { schedules: existingSchedules, lessons: existingLessons } = await readScheduleStores(schedulesRef, lessonsRef);
 
-  const target = existingSchedules.find((s) => s.id === scheduleId);
-  if (!target) throw new HttpsError('not-found', 'Расписание не найдено');
+  // Transactional — same reasoning as adminCreateTeacherSchedule. The deleted
+  // schedule is returned out so the notification below can name its subject
+  // without re-reading the doc it just removed.
+  const target = await db.runTransaction(async (tx) => {
+    const { schedules: existingSchedules, lessons: existingLessons } =
+      await readScheduleStores(tx, schedulesRef, lessonsRef);
 
-  const filteredSchedules = existingSchedules.filter((s) => s.id !== scheduleId);
-  const filteredLessons = existingLessons.filter((l) => l.scheduleId !== scheduleId);
+    const found = existingSchedules.find((s) => s.id === scheduleId);
+    if (!found) throw new HttpsError('not-found', 'Расписание не найдено');
 
-  const batch = db.batch();
-  batch.set(schedulesRef, { data: filteredSchedules, ts: Date.now() }, { merge: false });
-  batch.set(lessonsRef, { data: filteredLessons, ts: Date.now() }, { merge: false });
-  await batch.commit();
+    const now = Date.now();
+    tx.set(schedulesRef, { data: existingSchedules.filter((s) => s.id !== scheduleId), ts: now }, { merge: false });
+    tx.set(lessonsRef, { data: existingLessons.filter((l) => l.scheduleId !== scheduleId), ts: now }, { merge: false });
+    return found;
+  });
 
   await notifyTeacherScheduleChange(
     db, teacherUid,
