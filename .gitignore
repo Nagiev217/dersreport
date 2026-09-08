@@ -18,7 +18,9 @@ firestore-debug.log
 # Local Claude Code settings (machine-specific permissions, not shared config)
 .claude/settings.local.json
 
-# Locally-installed skills (reproducible from skills-lock.json)
-.agents/
+# .claude/skills/ and apps/mobile/.claude/skills/ are machine-specific
+# symlink shims into .agents/skills/, with absolute paths baked in — they'd
+# be broken on any other machine or path, so they stay ignored. The real
+# skill content (.agents/skills/, apps/mobile/.agents/skills/) is tracked.
 .claude/skills/
 apps/mobile/.claude/skills/
