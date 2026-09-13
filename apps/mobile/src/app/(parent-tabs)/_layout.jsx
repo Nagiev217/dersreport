@@ -1,5 +1,5 @@
 import { Tabs } from "expo-router";
-import { Home, FileText, User, Users, Calendar } from "lucide-react-native";
+import { Home, FileText, User, Calendar } from "lucide-react-native";
 import { View } from "react-native";
 import { useT } from "@/utils/i18n";
 import { ParentDataProvider } from "@/utils/firebase/parentRealtime";
@@ -37,9 +37,13 @@ export default function ParentTabLayout() {
       }}
     >
       <Tabs.Screen name="index"   options={{ title: t("tabHome"),      tabBarIcon: ({ focused }) => <TabIcon Icon={Home}     focused={focused} /> }} />
-      <Tabs.Screen name="child"   options={{ title: t("tabMyChild"),   tabBarIcon: ({ focused }) => <TabIcon Icon={Users}    focused={focused} /> }} />
+      <Tabs.Screen name="index-test" options={{ title: "Тест", href: null }} />
+      <Tabs.Screen name="child"   options={{ title: t("tabMyChild"), href: null }} />
       <Tabs.Screen name="child-variant-modules" options={{ href: null }} />
       <Tabs.Screen name="reports-variant-timeline" options={{ href: null }} />
+      <Tabs.Screen name="index-variant-hero" options={{ href: null }} />
+      <Tabs.Screen name="index-variant-pulse" options={{ href: null }} />
+      <Tabs.Screen name="index-variant-canvas" options={{ href: null }} />
       <Tabs.Screen name="lessons" options={{ title: t("tabLessons"),   tabBarIcon: ({ focused }) => <TabIcon Icon={Calendar} focused={focused} /> }} />
       <Tabs.Screen name="reports" options={{ title: t("reportsTitle"), tabBarIcon: ({ focused }) => <TabIcon Icon={FileText} focused={focused} /> }} />
       <Tabs.Screen name="profile" options={{ title: t("tabProfile"),   tabBarIcon: ({ focused }) => <TabIcon Icon={User}     focused={focused} /> }} />

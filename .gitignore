@@ -2,10 +2,13 @@
 .env
 .env.*
 !.env.example
-apps/mobile/src/utils/dev/devAccounts.js
 
 # Dependencies
 node_modules/
+
+# Generated native projects (Expo prebuild) — regenerate with `expo prebuild`
+apps/mobile/ios/
+apps/mobile/android/
 
 # OS cruft
 .DS_Store

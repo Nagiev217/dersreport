@@ -27,6 +27,7 @@ import {
 import { registerPushToken } from "@/utils/firebase/notifications";
 import { getMyRoleRemote } from "@/utils/firebase/adminAccounts";
 import { setCachedRole } from "@/utils/auth/roleCache";
+import { saveAccount } from "@/utils/dev/savedAccounts";
 import { useT } from "@/utils/i18n";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -264,6 +265,11 @@ export default function LoginScreen() {
       userRole = userRole ?? effectiveRole;
       await setCachedRole(cred.user.uid, userRole);
       registerPushToken(cred.user.uid, userRole).catch(() => {});
+      saveAccount(userRole, {
+        email: email.trim().toLowerCase(),
+        password,
+        displayName: cred.user.displayName ?? "",
+      }).catch(() => {});
       router.replace(
         userRole === "parent" ? "/(parent-tabs)"
           : userRole === "student" ? "/(student-tabs)"

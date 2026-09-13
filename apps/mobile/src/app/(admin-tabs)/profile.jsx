@@ -10,6 +10,7 @@ import { clearCachedRole } from "@/utils/auth/roleCache";
 import { useT, useLangStore } from "@/utils/i18n";
 import { useMyRole } from "@/utils/auth/useMyRole";
 import { ROLES } from "@/utils/auth/permissions";
+import DevAccountSwitcher from "@/components/DevAccountSwitcher";
 
 const NAVY_GRAD = ["#2563EB", "#4F46E5"];
 
@@ -177,6 +178,8 @@ export default function AdminProfile() {
         <LogOut size={16} color="#EF4444" />
         <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#EF4444" }}>{t("profileSignOut")}</Text>
       </TouchableOpacity>
+
+      <DevAccountSwitcher currentRole={role} />
 
       <LangModal visible={showLang} onClose={() => setShowLang(false)} />
     </ScrollView>

@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,7 +7,6 @@ import Animated, { FadeInDown, Easing } from "react-native-reanimated";
 import {
   ArrowLeft,
   Phone,
-  BookOpen,
   Clock,
   Calendar,
   TrendingUp,
@@ -27,12 +26,20 @@ import { unlinkStudentFromTeacher } from "@/utils/firebase/roles";
 import { auth } from "@/utils/firebase/config";
 import { useProgressStore } from "@/utils/progress/store";
 import { useParentsStore } from "@/utils/parents/store";
+import { useReportsStore } from "@/utils/reports/store";
+import { useLessonsStore } from "@/utils/lessons/store";
 import { getScoreColor } from "@/data/mockData";
 import { useT } from "@/utils/i18n";
 import PressableScale from "@/components/PressableScale";
 import AddEvaluationModal from "@/components/AddEvaluationModal";
 import LinkParentModal from "@/components/LinkParentModal";
 import LinkStudentModal from "@/components/LinkStudentModal";
+
+// "Светлый минимализм" — верхний блок оформлен по тому же canvas, что и
+// остальные вкладки (Lesson Reports Home.dc.html, turn t7, option 7b).
+// Остальные секции ниже (родители/привязки/заметки) не тронуты.
+const INK7B  = "#0B1437";
+const BLUE7B = "#2F5BE8";
 
 // ─── Design tokens — Blue + Indigo + White, matching the Boss dashboard ─────
 const BLUE      = "#2563EB";
@@ -44,24 +51,6 @@ const SUB   = "#8E93A1";
 const BORDER = "#E5E9F2";
 const GREEN = "#22C55E";
 const AMBER = "#D97706";
-
-const TYPE_COLORS = {
-  IELTS: { bg: INDIGO_50, text: INDIGO },
-  SAT: { bg: BLUE_50, text: BLUE },
-  General: { bg: "#ECFDF5", text: GREEN },
-};
-
-function getAttendanceInfo(pct) {
-  if (pct >= 90) return { color: GREEN, bg: "#ECFDF5" };
-  if (pct >= 75) return { color: BLUE, bg: BLUE_50 };
-  return { color: AMBER, bg: "#FFFBEB" };
-}
-
-function getScoreBg(color) {
-  if (color === "#22C55E") return "#ECFDF5";
-  if (color === "#3B82F6") return BLUE_50;
-  return "#FFFBEB";
-}
 
 function SectionCard({ children, style }) {
   return (
@@ -95,36 +84,6 @@ function SectionHeader({ title, icon: Icon }) {
   );
 }
 
-function StatBox({ value, subvalue, label, color, bgColor }) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: bgColor,
-        borderRadius: 16,
-        paddingVertical: 14,
-        paddingHorizontal: 12,
-        alignItems: "center",
-        gap: 4,
-      }}
-    >
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 1 }}>
-        <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color, letterSpacing: -0.5 }}>
-          {value}
-        </Text>
-        {subvalue ? (
-          <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: SUB }}>
-            {subvalue}
-          </Text>
-        ) : null}
-      </View>
-      <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#6B7280", textAlign: "center", lineHeight: 13 }}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 function ContactRow({ icon: Icon, label, value }) {
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -152,6 +111,8 @@ export default function StudentProfileScreen() {
   const { students, updateStudent } = useStudentsStore();
   const { evaluations, goals } = useProgressStore();
   const { parents, unlinkStudent } = useParentsStore();
+  const { reports } = useReportsStore();
+  const { lessons } = useLessonsStore();
   const [showEvalModal, setShowEvalModal] = useState(false);
   const [showLinkParentModal, setShowLinkParentModal] = useState(false);
   const [showLinkStudentModal, setShowLinkStudentModal] = useState(false);
@@ -160,6 +121,23 @@ export default function StudentProfileScreen() {
 
   const myEvals = evaluations.filter((e) => String(e.studentId) === String(id));
   const myGoals = goals.filter((g) => String(g.studentId) === String(id));
+
+  // "Отчёты за..." — canvas 7b: последний завершённый урок этого ученика
+  // без отчёта, чипы "над чем работаем" и история отчётов.
+  const myReports = useMemo(
+    () => reports.filter((r) => String(r.studentId) === String(id)).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)),
+    [reports, id]
+  );
+  const avgScore10 = myReports.length
+    ? Math.round((myReports.reduce((s, r) => s + (r.activityScore ?? 0), 0) / myReports.length) * 20) / 10
+    : null;
+  const pendingLesson = useMemo(() => {
+    const hasReport = (l) => myReports.some((r) => r.date === l.date);
+    return lessons
+      .filter((l) => (l.studentIds ?? []).includes(String(id)) && l.status === "completed" && !hasReport(l))
+      .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
+  }, [lessons, myReports, id]);
+  const workingOn = [...new Set(myReports.map((r) => r.difficulties).filter(Boolean))].slice(0, 3);
 
   const avgActivity = myEvals.length
     ? (myEvals.reduce((s, e) => s + e.activity, 0) / myEvals.length).toFixed(1)
@@ -207,11 +185,6 @@ export default function StudentProfileScreen() {
     .join("")
     .slice(0, 2);
 
-  const scoreColor = getScoreColor(student.score);
-  const scoreBg = getScoreBg(scoreColor);
-  const typeColor = TYPE_COLORS[student.type] || TYPE_COLORS.General;
-  const attendInfo = getAttendanceInfo(student.attendance ?? 0);
-
   const hasSkills = student.skills && student.skills.length > 0;
   const hasHistory = student.lessonHistory && student.lessonHistory.length > 0;
   const hasContact = student.phone;
@@ -224,138 +197,113 @@ export default function StudentProfileScreen() {
       contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Fills the top overscroll/bounce gap with the hero color instead of white */}
-      <View pointerEvents="none" style={{ position: "absolute", top: -600, left: 0, right: 0, height: 600, backgroundColor: BLUE_50 }} />
-      {/* ─── SECTION 1 — Hero (gradient blue-50 → indigo-50 → white) ─────── */}
-      <LinearGradient
-        colors={[BLUE_50, INDIGO_50, "#FFFFFF"]}
-        locations={[0, 0.6, 1]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 24, paddingHorizontal: 20 }}
-      >
-        {/* Back button */}
+      {/* ─── SECTION 1 — Hero (canvas 7b, тёмный INK) ─────────────────── */}
+      <View style={{ backgroundColor: INK7B, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, overflow: "hidden", paddingTop: insets.top + 8, paddingBottom: 24, paddingHorizontal: 20 }}>
+        <View pointerEvents="none" style={{ position: "absolute", right: -50, top: -40, width: 190, height: 190, borderRadius: 95, backgroundColor: "rgba(79,70,229,0.5)" }} />
+
         <PressableScale
           onPress={() => router.back()}
           scaleTo={0.9}
           accessibilityRole="button"
           accessibilityLabel={t("back")}
-          style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, alignItems: "center", justifyContent: "center", marginBottom: 22 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
-          <ArrowLeft size={20} color={TEXT} />
+          <ArrowLeft size={16} color="rgba(255,255,255,0.85)" />
+          <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: "rgba(255,255,255,0.85)" }}>{t("studentsTitle")}</Text>
         </PressableScale>
 
-        {/* Avatar + identity */}
-        <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))} style={{ alignItems: "center" }}>
-          {/* Colored avatar (per-student color) with matching glow shadow */}
-          <View
-            style={{
-              width: 88,
-              height: 88,
-              borderRadius: 44,
-              backgroundColor: student.avatarColor,
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 14,
-              borderWidth: 3,
-              borderColor: "#FFFFFF",
-              shadowColor: student.avatarColor,
-              shadowOpacity: 0.35,
-              shadowRadius: 16,
-              shadowOffset: { width: 0, height: 8 },
-              elevation: 8,
-            }}
-          >
-            <Text style={{ fontSize: 28, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.5 }}>
-              {initials}
+        <Animated.View entering={FadeInDown.duration(360).easing(Easing.out(Easing.cubic))} style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 18, marginBottom: 16 }}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: "rgba(255,255,255,0.14)", alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.4 }}>{displayName}</Text>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.72)" }}>
+              {[tSubject(student.type), tSubject(student.subject)].filter(Boolean).join(" · ")}
             </Text>
           </View>
-
-          <Text style={{ fontSize: 24, fontFamily: "Inter_700Bold", color: TEXT, letterSpacing: -0.4, marginBottom: 10 }}>
-            {displayName}
-          </Text>
-
-          {/* Badges row: type + subject */}
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 8 }}>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 5, backgroundColor: typeColor.bg, borderRadius: 20 }}>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: typeColor.text }}>
-                {tSubject(student.type)}
-              </Text>
-            </View>
-            <View style={{ paddingHorizontal: 12, paddingVertical: 5, backgroundColor: "#F1F5F9", borderRadius: 20 }}>
-              <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: "#6B7280" }}>
-                {tSubject(student.subject)}
-              </Text>
-            </View>
-          </View>
-
-          {student.joinDate ? (
-            <Text style={{ fontSize: 12, fontFamily: "Inter_400Regular", color: SUB }}>
-              {t("studentJoinDate")}{student.joinDate}
-            </Text>
-          ) : null}
         </Animated.View>
-      </LinearGradient>
+
+        <View style={{ flexDirection: "row", gap: 9 }}>
+          <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 13, gap: 3 }}>
+            <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.4 }}>{avgScore10 ?? "—"}</Text>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" }}>Средняя</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 13, gap: 3 }}>
+            <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.4 }}>{myReports.length}</Text>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" }}>{t("studentStatLessons")}</Text>
+          </View>
+          <View style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 13, gap: 3 }}>
+            <Text style={{ fontSize: 19, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.4 }}>{student.attendance ?? 0}%</Text>
+            <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.7)" }}>{t("studentStatAttend")}</Text>
+          </View>
+        </View>
+      </View>
 
       {/* ─── Content ────────────────────────────────────────────── */}
       <View style={{ paddingHorizontal: 20, paddingTop: 20, gap: 14 }}>
 
-        {/* Stats 2×2 */}
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <StatBox
-              value={String(student.score)}
-              subvalue={`/${student.maxScore}`}
-              label={t("studentStatScore")}
-              color={scoreColor}
-              bgColor={scoreBg}
-            />
-            <StatBox
-              value={String(student.lessonsCompleted ?? 0)}
-              label={t("studentStatLessons")}
-              color={BLUE}
-              bgColor={BLUE_50}
-            />
-          </View>
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <StatBox
-              value={`${student.attendance ?? 0}%`}
-              label={t("studentStatAttend")}
-              color={attendInfo.color}
-              bgColor={attendInfo.bg}
-            />
-            <StatBox
-              value={String(student.lessonsRemaining ?? 0)}
-              label={t("studentStatRemain")}
-              color={AMBER}
-              bgColor="#FFFBEB"
-            />
-          </View>
-        </View>
-
-        {/* Next Lesson — gradient spotlight card */}
-        <View style={{ borderRadius: 20, overflow: "hidden" }}>
-          <LinearGradient
-            colors={[BLUE, INDIGO]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={{ padding: 18, flexDirection: "row", alignItems: "center", gap: 14 }}
+        {/* Отчёт за N — незаполненный отчёт по последнему завершённому уроку */}
+        {pendingLesson && (
+          <PressableScale
+            onPress={() => router.push(`/report/add?studentId=${id}`)}
+            scaleTo={0.985}
+            style={{ backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: "rgba(47,91,232,.4)", borderRadius: 20, padding: 16, flexDirection: "row", alignItems: "center", gap: 13 }}
           >
-            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" }}>
-              <BookOpen size={22} color="#FFFFFF" />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={{ fontSize: 14.5, fontFamily: "Inter_700Bold", color: TEXT }}>Отчёт за {pendingLesson.date}</Text>
+              <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: "#3730A3" }}>Не отправлен</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.85)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 4 }}>
-                {t("studentNextLesson")}
-              </Text>
-              <Text style={{ fontSize: 16, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>
-                {student.nextLesson}
-              </Text>
-              <Text style={{ fontSize: 13, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 2 }}>
-                {tSubject(student.subject)} — {tSubject(student.type)}
-              </Text>
+            <View style={{ backgroundColor: INK7B, borderRadius: 14, paddingHorizontal: 15, paddingVertical: 11 }}>
+              <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>Заполнить</Text>
             </View>
-          </LinearGradient>
-        </View>
+          </PressableScale>
+        )}
+
+        {/* Над чем работаем */}
+        {workingOn.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: SUB, textTransform: "uppercase", letterSpacing: 1 }}>Над чем работаем</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+              {workingOn.map((w, i) => (
+                <View key={i} style={{ backgroundColor: "#EEF1FC", borderRadius: 13, paddingHorizontal: 13, paddingVertical: 9 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: "#3730A3", maxWidth: 220 }}>{w}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* История отчётов */}
+        {myReports.length > 0 && (
+          <View style={{ gap: 10 }}>
+            <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: SUB, textTransform: "uppercase", letterSpacing: 1 }}>История отчётов</Text>
+              <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: BLUE7B }}>Все {myReports.length}</Text>
+            </View>
+            {myReports.slice(0, 5).map((r) => (
+              <PressableScale
+                key={r.id}
+                onPress={() => router.push(`/report/${r.id}`)}
+                scaleTo={0.985}
+                style={{ backgroundColor: "#FFFFFF", borderWidth: 1, borderColor: BORDER, borderRadius: 20, padding: 16, flexDirection: "row", gap: 13, alignItems: "flex-start" }}
+              >
+                <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: "#EEF1FC", alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_700Bold", color: "#3730A3" }}>{r.activityScore ?? "—"}</Text>
+                </View>
+                <View style={{ flex: 1, gap: 4, minWidth: 0 }}>
+                  <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                    <Text numberOfLines={1} style={{ flex: 1, fontSize: 14.5, fontFamily: "Inter_700Bold", color: TEXT }}>{r.topic ?? "Отчёт"}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: SUB }}>{r.date}</Text>
+                  </View>
+                  {!!r.comment && (
+                    <Text numberOfLines={2} style={{ fontSize: 12.5, fontFamily: "Inter_500Medium", color: SUB, lineHeight: 18 }}>{r.comment}</Text>
+                  )}
+                </View>
+              </PressableScale>
+            ))}
+          </View>
+        )}
 
         {/* ── Weekly report for parents (Azerbaijani) ──────────────── */}
         <PressableScale

@@ -36,6 +36,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index"    options={{ title: t("tabHome"),       tabBarIcon: ({ focused }) => <TabIcon Icon={Home}      focused={focused} /> }} />
+      <Tabs.Screen name="index-variant-classic" options={{ title: "Классика", href: null }} />
       <Tabs.Screen name="students" options={{ title: t("studentsTitle"), tabBarIcon: ({ focused }) => <TabIcon Icon={Users}     focused={focused} /> }} />
       <Tabs.Screen name="lessons"  options={{ title: t("lessonsTitle"),  tabBarIcon: ({ focused }) => <TabIcon Icon={BookOpen}  focused={focused} /> }} />
       <Tabs.Screen name="reports"  options={{ title: t("reportsTitle"),  tabBarIcon: ({ focused }) => <TabIcon Icon={BarChart3}  focused={focused} /> }} />

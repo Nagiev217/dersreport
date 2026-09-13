@@ -42,9 +42,17 @@ export function ParentDataProvider({ children }) {
         )
       );
 
-      setStudents(allStudents);
-      setReports(allReports.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)));
-      setLessons(allLessons);
+      // A parent can be granted access to the same child under more than one
+      // teacherUid (e.g. a Boss/Admin's own dual teacher identity mirrors the
+      // same student records into a second teachers/{uid}/stores doc — see
+      // PROJECT.md "Boss и Admin могут сами преподавать"). Dedupe by id so a
+      // child, lesson, or report doesn't visually double just because its
+      // source data exists under two teacher documents.
+      const dedupeById = (arr) => [...new Map(arr.map((x) => [String(x.id), x])).values()];
+
+      setStudents(dedupeById(allStudents));
+      setReports(dedupeById(allReports).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0)));
+      setLessons(dedupeById(allLessons));
       setLoading(false);
     }
 

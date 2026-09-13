@@ -1,34 +1,26 @@
 import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, Dimensions } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle } from "react-native-svg";
 import { ChevronRight, SlidersHorizontal } from "lucide-react-native";
-import { auth } from "@/utils/firebase/config";
 import { useParentData } from "@/utils/firebase/parentRealtime";
 import { getScoreColor } from "@/data/mockData";
-import { useT } from "@/utils/i18n";
 import PressableScale from "@/components/PressableScale";
+import VariantSwitcher from "@/components/VariantSwitcher";
 
-// ─── "Светлый минимализм" — imported from a Claude Design canvas
-// (Lesson Reports Home.dc.html, turn t1, option 1a). Its own palette by
-// design — see PROJECT.md if reconciling with the rest of the app's
-// Blue+Indigo system later. ─────────────────────────────────────────────
-const INK    = "#0B1437";
-const BLUE   = "#2F5BE8";
-const BG     = "#F5F6FA";
-const SUB    = "rgba(11,20,55,.62)";
-const BORDER = "rgba(11,20,55,.07)";
+// ─── "Светлый минимализм" — imported from the Claude Design canvas
+// (Lesson Reports Home.dc.html, turn t1, option 1a). Own palette by design,
+// same as the other comparison variants in this file group. ────────────────
+const INK      = "#0B1437";
+const BLUE     = "#2F5BE8";
+const INDIGO   = "#4F46E5";
+const BG       = "#F5F6FA";
+const SUB      = "rgba(11,20,55,.62)";
+const BORDER   = "rgba(11,20,55,.07)";
 
 const S = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20 };
-
-// Card takes most of the screen, leaving a peek of the next card on the
-// right — same "one card, centered, swipeable" composition as the reference.
-const SCREEN_W = Dimensions.get("window").width;
-const CARD_GAP = 14;
-const CARD_PEEK = 28;
-const CARD_W = SCREEN_W - S.xl * 2 - CARD_PEEK;
 
 const WEEKDAY_NAMES = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 const MONTH_NAMES = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -61,27 +53,19 @@ function AttendanceRing({ size = 78, progress = 0 }) {
   );
 }
 
-export default function ParentHome() {
+export default function ParentHomeVariantCanvas() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { t } = useT();
   const { students, lessons, reports } = useParentData();
   const [selectedId, setSelectedId] = useState(null);
 
-  const displayName = auth?.currentUser?.displayName ?? t("roleParentTitle");
+  const parentName = "родитель";
   const child = students.find((s) => String(s.id) === selectedId) ?? students[0];
   const childIdStr = child ? String(child.id) : null;
 
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
-  const tomorrow = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
   const dateLabel = `${WEEKDAY_NAMES[now.getDay()]}, ${now.getDate()} ${MONTH_NAMES[now.getMonth()]}`;
-  const relativeDate = (dateStr) => {
-    if (dateStr === today) return "Сегодня";
-    if (dateStr === tomorrow) return "Завтра";
-    const [y, m, d] = dateStr.split("-").map(Number);
-    return `${d} ${MONTH_NAMES[m - 1]}`;
-  };
 
   const childLessons = childIdStr ? lessons.filter((l) => (l.studentIds ?? []).map(String).includes(childIdStr)) : [];
   const childReports = childIdStr ? reports.filter((r) => String(r.studentId) === childIdStr) : [];
@@ -109,30 +93,21 @@ export default function ParentHome() {
       <Animated.View entering={FadeInDown.springify().damping(18).stiffness(180)} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: S.xl }}>
         <View style={{ gap: 3 }}>
           <Text style={{ fontSize: 11, fontFamily: "Inter_600SemiBold", color: SUB, textTransform: "uppercase", letterSpacing: 0.9 }}>{dateLabel}</Text>
-          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: INK, letterSpacing: -0.4 }}>Здравствуйте, {displayName}</Text>
+          <Text style={{ fontSize: 22, fontFamily: "Inter_700Bold", color: INK, letterSpacing: -0.4 }}>Здравствуйте, {parentName}</Text>
         </View>
-        <PressableScale
-          onPress={() => router.push("/(parent-tabs)/profile")}
-          accessibilityRole="button"
-          accessibilityLabel="Профиль"
-          style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}
-        >
+        <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: BORDER, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
           <SlidersHorizontal size={15} color={INK} />
-        </PressableScale>
+        </View>
       </Animated.View>
+
+      <View style={{ paddingHorizontal: S.xl }}>
+        <VariantSwitcher activeKey="index-variant-canvas" activeColor={BLUE} activeBg="#EEF2FF" />
+      </View>
 
       {/* Kids carousel */}
       {students.length > 0 && (
         <Animated.View entering={FadeInDown.delay(40).springify().damping(18).stiffness(180)} style={{ marginTop: S.lg }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={CARD_W + CARD_GAP}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            contentContainerStyle={{ gap: CARD_GAP, paddingHorizontal: CARD_PEEK }}
-          >
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingHorizontal: S.xl }}>
             {students.map((s) => {
               const active = String(s.id) === childIdStr;
               const rs = reports.filter((r) => String(r.studentId) === String(s.id));
@@ -142,7 +117,7 @@ export default function ParentHome() {
                   key={s.id}
                   onPress={() => setSelectedId(String(s.id))}
                   style={{
-                    width: CARD_W, borderRadius: 22, padding: S.xl,
+                    width: 232, borderRadius: 22, padding: S.xl,
                     backgroundColor: active ? INK : "#FFFFFF",
                     borderWidth: active ? 0 : 1, borderColor: BORDER,
                   }}
@@ -158,18 +133,11 @@ export default function ParentHome() {
                       </Text>
                     </View>
                   </View>
-                  <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 28 }}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 18 }}>
                     <View style={{ gap: 2 }}>
                       <Text style={{ fontSize: 12, fontFamily: "Inter_500Medium", color: active ? "rgba(255,255,255,0.6)" : SUB }}>Средняя оценка</Text>
-                      <Text style={{ fontSize: 14, fontFamily: "Inter_600SemiBold", color: active ? "#FFFFFF" : INK }}>
-                        {avg > 0 ? `${avg.toFixed(1)} за ${rs.length} ${rs.length === 1 ? "урок" : "уроков"}` : "Пока нет отчётов"}
-                      </Text>
+                      <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: active ? "#FFFFFF" : INK }}>{avg.toFixed(1)}</Text>
                     </View>
-                    {avg > 0 && (
-                      <Text style={{ fontSize: 40, fontFamily: "Inter_700Bold", color: active ? "#FFFFFF" : INK, letterSpacing: -1, lineHeight: 40 }}>
-                        {avg.toFixed(1)}
-                      </Text>
-                    )}
                   </View>
                 </PressableScale>
               );
@@ -252,7 +220,7 @@ export default function ParentHome() {
             <View style={{ marginTop: 14, gap: 5 }}>
               <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: "#FFFFFF", letterSpacing: -0.3 }}>{upcoming.subject ?? "Урок"}</Text>
               <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.68)" }}>
-                {relativeDate(upcoming.date)}{upcoming.time ? ` · ${upcoming.time}` : ""} · {child?.name}
+                {upcoming.date === today ? "Сегодня" : upcoming.date}{upcoming.time ? ` · ${upcoming.time}` : ""} · {child?.name}
               </Text>
             </View>
             <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
@@ -264,9 +232,9 @@ export default function ParentHome() {
               </PressableScale>
               <PressableScale
                 onPress={() => Alert.alert("Скоро", "Сообщения преподавателю появятся в одном из следующих обновлений.")}
-                style={{ flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", borderRadius: 14, paddingVertical: 12, paddingHorizontal: 6, alignItems: "center" }}
+                style={{ flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.28)", borderRadius: 14, paddingVertical: 12, alignItems: "center" }}
               >
-                <Text style={{ fontSize: 13.5, fontFamily: "Inter_700Bold", color: "#FFFFFF", textAlign: "center" }}>Написать преподавателю</Text>
+                <Text style={{ fontSize: 13.5, fontFamily: "Inter_700Bold", color: "#FFFFFF" }}>Написать преподавателю</Text>
               </PressableScale>
             </View>
           </Animated.View>

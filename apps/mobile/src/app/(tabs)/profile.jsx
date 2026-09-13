@@ -48,6 +48,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system";
 import PressableScale from "@/components/PressableScale";
 import DevAccountSwitcher from "@/components/DevAccountSwitcher";
+import { useMyRole } from "@/utils/auth/useMyRole";
 import { useT, useLangStore } from "@/utils/i18n";
 
 const PHOTO_KEY = "teacherProfilePhoto";
@@ -262,6 +263,7 @@ export default function TeacherProfile() {
   const router = useRouter();
   const { t } = useT();
   const { lang } = useLangStore();
+  const myRole = useMyRole();
 
   const [displayName,  setDisplayName]  = useState(auth?.currentUser?.displayName ?? t("profileTeacher"));
   const [photoUri,     setPhotoUri]     = useState(null);
@@ -477,7 +479,7 @@ export default function TeacherProfile() {
           </Text>
         </TouchableOpacity>
 
-        <DevAccountSwitcher currentRole="teacher" />
+        <DevAccountSwitcher currentRole={myRole ?? "teacher"} />
       </ScrollView>
 
       <EditNameModal

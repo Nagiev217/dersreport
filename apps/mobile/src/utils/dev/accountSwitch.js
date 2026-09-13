@@ -4,16 +4,17 @@ import { getUserDoc } from "@/utils/firebase/users";
 import { getMyRoleRemote } from "@/utils/firebase/adminAccounts";
 import { isStaffRole } from "@/utils/auth/permissions";
 import { setCachedRole, clearCachedRole } from "@/utils/auth/roleCache";
-import { DEV_ACCOUNTS } from "./devAccounts";
+import { getSavedAccounts } from "./savedAccounts";
 
-// Signs out of whatever account is active, signs into the dev account for
-// `targetRole`, then navigates to that role's tab group — same sign-in +
-// role-resolution sequence as the real login screen (login.jsx), just
-// triggered from a button instead of a form.
+// Signs out of whatever account is active, signs into the saved account for
+// `targetRole` (saved automatically by login.jsx on a real sign-in), then
+// navigates to that role's tab group — same sign-in + role-resolution
+// sequence as the real login screen, just triggered from a button.
 export async function switchToDevAccount(targetRole, router) {
-  const creds = DEV_ACCOUNTS[targetRole];
+  const saved = await getSavedAccounts();
+  const creds = saved[targetRole];
   if (!creds?.email || !creds?.password) {
-    throw new Error(`Заполни DEV_ACCOUNTS.${targetRole} в utils/dev/devAccounts.js`);
+    throw new Error(`Ещё не входили в аккаунт с ролью «${targetRole}» на этом устройстве`);
   }
   if (!IS_FIREBASE_READY || !auth) {
     throw new Error("Firebase не готов");
