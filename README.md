@@ -1,122 +1,122 @@
 # DərsReport
 
-**Приложение для репетиторского центра: после каждого урока — подробный отчёт, а родители видят прогресс ребёнка в реальном времени.**
+**A tutoring center app: a detailed report after every lesson, and parents see their child's progress in real time.**
 
-DərsReport («Lesson Report») — мобильное приложение, в котором весь центр работает в одном месте. Преподаватели ведут учеников, расписание и отчёты об уроках. Родители и ученики получают отчёт push-уведомлением сразу после урока и видят оценки, посещаемость и домашние задания. Администрация управляет преподавателями, расписанием, оплатами и зарплатами по всей организации.
+DərsReport ("Lesson Report") is a mobile app that runs a whole tutoring center in one place. Teachers manage students, schedules and lesson reports. Parents and students get the report as a push notification right after the lesson and see grades, attendance and homework. The management team handles teachers, scheduling, payments and salaries across the organization.
 
-Приложение используется в репетиторском центре **Jeff Colleges** (IELTS, SAT, General English). Интерфейс на трёх языках: русский, азербайджанский, английский.
+The app is used at the **Jeff Colleges** tutoring center (IELTS, SAT, General English). The interface is available in three languages: Russian, Azerbaijani and English.
 
 ---
 
-## Содержание
+## Contents
 
-- [Кто пользуется приложением](#кто-пользуется-приложением)
-- [Что умеет приложение](#что-умеет-приложение)
-- [Технологии](#технологии)
-- [Как устроено](#как-устроено)
-- [Структура репозитория](#структура-репозитория)
-- [Запуск](#запуск)
+- [Who uses the app](#who-uses-the-app)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [How it works](#how-it-works)
+- [Repository structure](#repository-structure)
+- [Getting started](#getting-started)
 - [Cloud Functions](#cloud-functions)
-- [Дизайн-система](#дизайн-система)
-- [Соглашения проекта](#соглашения-проекта)
-- [Известные ограничения](#известные-ограничения)
+- [Design system](#design-system)
+- [Project conventions](#project-conventions)
+- [Known limitations](#known-limitations)
 
 ---
 
-## Кто пользуется приложением
+## Who uses the app
 
-Пять ролей, у каждой свой набор вкладок:
+Five roles, each with its own set of tabs:
 
-| Роль | Кто это | Что видит |
+| Role | Who | What they see |
 |---|---|---|
-| **Преподаватель** | Репетитор | Свои ученики, уроки, расписание, отчёты, аналитика |
-| **Родитель** | Родитель ученика | Прогресс ребёнка, отчёты преподавателя, расписание уроков |
-| **Ученик** | Сам ученик, если у него есть аккаунт | Ближайшие уроки, отчёты, свой прогресс |
-| **Администратор** | Менеджер центра | Расписание и оплаты по всем преподавателям |
-| **Владелец (Boss)** | Руководитель центра | Всё, включая финансы и зарплаты преподавателей |
+| **Teacher** | A tutor | Their students, lessons, schedule, reports, analytics |
+| **Parent** | A student's parent | Their child's progress, teacher reports, lesson schedule |
+| **Student** | The student, if they have an account | Upcoming lessons, reports, their own progress |
+| **Admin** | The center's manager | Schedules and payments across all teachers |
+| **Owner (Boss)** | The head of the center | Everything, including finances and teacher salaries |
 
-Администратор и владелец тоже могут преподавать: плитка «Обучение» открывает им обычный режим преподавателя.
+Admins and the owner can also teach: the "Teaching" tile opens the regular teacher mode for them.
 
-## Что умеет приложение
+## Features
 
-### Преподаватель
+### Teacher
 
-- **Ученики** — карточки учеников с предметом и программой (IELTS, SAT, General), группы.
-- **Уроки и расписание** — создание уроков, недельное расписание, отметка посещаемости.
-- **Отчёт об уроке** — тема, описание занятия, оценка активности ученика (1–5), сильные стороны, сложности и ошибки, домашнее задание, план следующего урока, комментарий для родителей.
-- **Домашние задания, экзамены, проверка эссе (writing)**, еженедельный отчёт по ученику.
-- **Аналитика** — посещаемость, динамика оценок, статистика по ученикам.
-- **Приглашение родителей и учеников** — по одноразовому коду привязки.
+- **Students** — student cards with subject and program (IELTS, SAT, General), groups.
+- **Lessons and schedule** — creating lessons, a weekly schedule, attendance tracking.
+- **Lesson report** — topic, lesson description, the student's activity score (1–5), strengths, difficulties and mistakes, homework, next lesson plan, a comment for parents.
+- **Homework, exams, essay checking (writing)**, a weekly report per student.
+- **Analytics** — attendance, grade trends, per-student statistics.
+- **Inviting parents and students** — via a one-time linking code.
 
-### Родитель и ученик
+### Parent and student
 
-- **Главный экран родителя** — карточки детей со средней оценкой, успеваемость и посещаемость, следующий урок, последние отчёты.
-- **Push «Новый отчёт»** сразу после того, как преподаватель сохранил отчёт.
-- **Все отчёты** с оценкой активности, темой урока и комментарием преподавателя.
-- **Расписание уроков** и прогресс по программе.
+- **Parent home screen** — cards for each child with their average score, performance and attendance, the next lesson, recent reports.
+- **"New report" push** as soon as the teacher saves a report.
+- **All reports** with the activity score, lesson topic and teacher's comment.
+- **Lesson schedule** and program progress.
 
-### Администрация
+### Management
 
-- **Аккаунты** — создание, отключение, сброс пароля и удаление аккаунтов преподавателей и родителей (только владелец).
-- **Расписание всей организации** — создание и правка расписаний преподавателей (администратор).
-- **Оплаты учеников** — кто оплатил и кто нет за месяц, экспорт платежей.
-- **Финансы и зарплаты** — обзор финансов, зарплаты и ведомость (только владелец).
-- **Аналитика и активность** — нагрузка преподавателей, активность по организации.
+- **Accounts** — creating, disabling, resetting passwords and deleting teacher and parent accounts (owner only).
+- **Organization-wide schedule** — creating and editing teacher schedules (admin).
+- **Student payments** — who has and hasn't paid for the month, payment export.
+- **Finances and salaries** — a financial overview, salaries and payroll (owner only).
+- **Analytics and activity** — teacher workload, activity across the organization.
 
-## Технологии
+## Tech stack
 
-| Слой | Что используется |
+| Layer | What is used |
 |---|---|
-| Мобильное приложение | **Expo SDK 57**, React Native 0.86, expo-router, Zustand (+ AsyncStorage), Reanimated, lucide-react-native, шрифт Inter |
-| Бэкенд | **Firebase**: Firestore, Authentication, Cloud Functions v2 (Node.js) |
-| Push | Expo Push API (из Cloud Function `onReportCreated`) |
-| Сборка | EAS Build (`apps/mobile/eas.json`) |
-| Локализация | ru / az / en в одном файле `apps/mobile/src/utils/i18n/translations.js` |
+| Mobile app | **Expo SDK 57**, React Native 0.86, expo-router, Zustand (+ AsyncStorage), Reanimated, lucide-react-native, Inter font |
+| Backend | **Firebase**: Firestore, Authentication, Cloud Functions v2 (Node.js) |
+| Push | Expo Push API (from the `onReportCreated` Cloud Function) |
+| Build | EAS Build (`apps/mobile/eas.json`) |
+| Localization | ru / az / en in a single file, `apps/mobile/src/utils/i18n/translations.js` |
 
-## Как устроено
+## How it works
 
-### Данные в Firestore
+### Data in Firestore
 
-Верхнеуровневые коллекции: `users`, `teachers`, `parents`, `students`, `parentCodes`, `studentCodes`, `parentAccess`, `studentAccess`.
+Top-level collections: `users`, `teachers`, `parents`, `students`, `parentCodes`, `studentCodes`, `parentAccess`, `studentAccess`.
 
-- **Данные преподавателя** хранятся как `teachers/{uid}/stores/{storeName}` = `{ data: [...], ts }` — целый массив в одном документе. Сторы: `students`, `lessons`, `payments`, `schedules`, `progress`, `groups`, `parents`, `homework`, `writing`, `exams`.
-- **Отчёты** — отдельная подколлекция `teachers/{uid}/reports/{reportId}`, один документ на отчёт: за пару лет отчёты перерастали лимит Firestore в 1 МБ на документ.
-- **Связь родителя и ученика с преподавателем**: `parentAccess/{parentUid}/teachers/{teacherUid}` и `studentAccess/{studentUid}/teachers/{teacherUid}`. Записывает только сам преподаватель, читает только сам родитель или ученик — это закреплено в `firestore.rules`.
+- **Teacher data** is stored as `teachers/{uid}/stores/{storeName}` = `{ data: [...], ts }` — a whole array in one document. Stores: `students`, `lessons`, `payments`, `schedules`, `progress`, `groups`, `parents`, `homework`, `writing`, `exams`.
+- **Reports** live in a separate subcollection, `teachers/{uid}/reports/{reportId}`, one document per report: over a couple of years reports outgrew Firestore's 1 MB-per-document limit.
+- **Parent and student links to a teacher**: `parentAccess/{parentUid}/teachers/{teacherUid}` and `studentAccess/{studentUid}/teachers/{teacherUid}`. Only the teacher writes them, and only the parent or student themselves can read them — this is enforced in `firestore.rules`.
 
-### Синхронизация
+### Sync
 
-- **Преподаватель**: при входе все сторы загружаются одним запросом. Живые подписки (`onSnapshot`) стоят только на сторы, которые может менять и сервер (`lessons`, `schedules`, `payments`). Локальные изменения записываются обратно в Firestore с небольшой задержкой.
-- **Родитель и ученик** читают данные преподавателя напрямую и только на чтение, через живые подписки. Поэтому новый отчёт и новая оценка появляются у них сразу.
+- **Teacher**: on sign-in, all stores load in one request. Live subscriptions (`onSnapshot`) are kept only on stores the server can also change (`lessons`, `schedules`, `payments`). Local changes are written back to Firestore with a short delay.
+- **Parent and student** read the teacher's data directly and read-only, through live subscriptions. That's why a new report and a new grade show up for them immediately.
 
-### Права доступа
+### Access control
 
-- Роль хранится в `users/{uid}.role`. Сервер проверяет и роль, и флаг `disabled`: отключённый аккаунт отсекается сразу, не дожидаясь истечения токена.
-- Права в интерфейсе (`utils/auth/permissions.js`): финансы и зарплаты — только владелец; оплаты учеников — владелец и администратор; управление аккаунтами — только владелец; редактирование расписаний — только администратор (так решено по продукту).
+- The role is stored in `users/{uid}.role`. The server checks both the role and the `disabled` flag: a disabled account is cut off immediately, without waiting for its token to expire.
+- UI permissions (`utils/auth/permissions.js`): finances and salaries — owner only; student payments — owner and admin; account management — owner only; editing schedules — admin only (a product decision).
 
-## Структура репозитория
+## Repository structure
 
 ```
-apps/mobile/            Expo-приложение
-  src/app/(tabs)/         преподаватель
-  src/app/(parent-tabs)/  родитель
-  src/app/(student-tabs)/ ученик
-  src/app/(admin-tabs)/   администратор и владелец
+apps/mobile/            Expo app
+  src/app/(tabs)/         teacher
+  src/app/(parent-tabs)/  parent
+  src/app/(student-tabs)/ student
+  src/app/(admin-tabs)/   admin and owner
   src/app/report/, lesson/, homework/, exams/, writing/, weekly-report/, …
-  src/utils/              сторы Zustand, Firebase, i18n, права доступа
-  src/components/         общие компоненты (PressableScale и др.)
-apps/web/               веб-часть
+  src/utils/              Zustand stores, Firebase, i18n, permissions
+  src/components/         shared components (PressableScale and others)
+apps/web/               web part
 functions/              Cloud Functions (functions/index.js)
-firestore.rules         правила доступа Firestore
-PROJECT.md              подробный обзор архитектуры для разработчика
+firestore.rules         Firestore access rules
+PROJECT.md              detailed architecture overview for developers (in Russian)
 ```
 
-## Запуск
+## Getting started
 
 ```bash
 cd apps/mobile
 npm install
-npx expo start --tunnel          # в общей Wi-Fi сети можно без --tunnel
-npx expo start --tunnel --clear  # после правки babel.config.js или зависимостей
+npx expo start --tunnel          # on a shared Wi-Fi network you can drop --tunnel
+npx expo start --tunnel --clear  # after editing babel.config.js or dependencies
 ```
 
 Cloud Functions:
@@ -126,51 +126,51 @@ cd functions && npm install
 firebase deploy --only functions:<name1>,<name2>
 ```
 
-Проверка перед коммитом (тестового фреймворка нет):
+Checks before committing (there's no test framework):
 
 ```bash
 node --check functions/index.js
-# и Babel-компиляция всех apps/mobile/src/**/*.{js,jsx} с cwd = apps/mobile
+# plus a Babel compile of every apps/mobile/src/**/*.{js,jsx} with cwd = apps/mobile
 ```
 
 ## Cloud Functions
 
-Все функции — `onCall` с проверкой роли вызывающего на сервере.
+Every function is `onCall`, with the caller's role checked on the server.
 
-| Группа | Функции | Кто может вызывать |
+| Group | Functions | Who can call |
 |---|---|---|
-| Аккаунты | `createManagedAccount`, `setAccountEnabled`, `resetManagedPassword`, `deleteManagedAccount` | Владелец |
-| Роль | `getMyRole` | Любой вошедший |
-| Списки и аналитика | `listManagedTeachers`, `listManagedParents`, `getManagedTeacherStores`, `getOrgAnalytics`, `getOrgActivity`, `getTeacherWorkload` | Владелец, администратор |
-| Оплаты учеников | `getStudentPayments`, `addStudentPayment`, `deletePayment` | Владелец, администратор |
-| Финансы и зарплаты | `getFinanceOverview`, `getMonthlyPaymentsExport`, `setTeacherSalary`, `getPayroll` | Владелец |
-| Расписание | `adminCreateTeacherSchedule`, `adminUpdateTeacherSchedule`, `adminDeleteTeacherSchedule`, `getOrgSchedule` | Администратор (чтение — и владелец) |
-| Триггер | `onReportCreated` — push родителю и ученику о новом отчёте | Срабатывает автоматически |
+| Accounts | `createManagedAccount`, `setAccountEnabled`, `resetManagedPassword`, `deleteManagedAccount` | Owner |
+| Role | `getMyRole` | Any signed-in user |
+| Lists and analytics | `listManagedTeachers`, `listManagedParents`, `getManagedTeacherStores`, `getOrgAnalytics`, `getOrgActivity`, `getTeacherWorkload` | Owner, admin |
+| Student payments | `getStudentPayments`, `addStudentPayment`, `deletePayment` | Owner, admin |
+| Finances and salaries | `getFinanceOverview`, `getMonthlyPaymentsExport`, `setTeacherSalary`, `getPayroll` | Owner |
+| Scheduling | `adminCreateTeacherSchedule`, `adminUpdateTeacherSchedule`, `adminDeleteTeacherSchedule`, `getOrgSchedule` | Admin (read access for the owner too) |
+| Trigger | `onReportCreated` — pushes a new report to the parent and student | Runs automatically |
 
-Все операции, которые меняют массивы (оплаты, расписания), выполняются в транзакции `db.runTransaction` — иначе одновременные запросы молча затирали бы друг друга.
+Every operation that modifies an array (payments, schedules) runs inside a `db.runTransaction` — otherwise concurrent requests would silently overwrite each other.
 
-## Дизайн-система
+## Design system
 
-Стиль **Blue + Indigo + White**:
+The **Blue + Indigo + White** style:
 
-| Токен | Цвет | Назначение |
+| Token | Color | Used for |
 |---|---|---|
-| `BLUE` | `#2563EB` | основной акцент, главные кнопки |
-| `INDIGO` | `#4F46E5` | вторичный акцент |
-| `BLUE_50` / `INDIGO_50` | `#EFF6FF` / `#EEF2FF` | фон плашек и иконок |
-| `TEXT` | `#111827` | основной текст |
-| `SUB` | `#8E93A1` | подписи |
-| `BORDER` | `#E5E9F2` | обводка карточек |
+| `BLUE` | `#2563EB` | primary accent, main buttons |
+| `INDIGO` | `#4F46E5` | secondary accent |
+| `BLUE_50` / `INDIGO_50` | `#EFF6FF` / `#EEF2FF` | chip and icon backgrounds |
+| `TEXT` | `#111827` | primary text |
+| `SUB` | `#8E93A1` | secondary text |
+| `BORDER` | `#E5E9F2` | card borders |
 
-Шрифт — только Inter (400/500/600/700). Иконки — только lucide-react-native. Карточки с обводкой и без теней, отступы по 8pt-сетке, нажатия — через общий `PressableScale`. Эталон экрана в новом стиле — главный экран родителя `(parent-tabs)/index.jsx`.
+The only font is Inter (400/500/600/700). Icons come only from lucide-react-native. Cards have borders and no shadows, spacing follows an 8pt grid, and taps go through the shared `PressableScale`. The reference screen for the new style is the parent home screen, `(parent-tabs)/index.jsx`.
 
-## Соглашения проекта
+## Project conventions
 
-- **ID** создаются по шаблону `` `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,8)}` `` и всегда хранятся строкой: голый `Date.now()` давал совпадения в одну миллисекунду.
-- **Новый текст интерфейса** добавляется сразу во все три языка (ru, az, en). Файл переводов в CRLF-переносах.
-- Подробное описание архитектуры для разработчика — в [`PROJECT.md`](PROJECT.md).
+- **IDs** follow the pattern `` `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,8)}` `` and are always stored as strings: a bare `Date.now()` collided within the same millisecond.
+- **New UI text** goes into all three languages (ru, az, en) at once. The translations file uses CRLF line endings.
+- A detailed architecture description for developers is in [`PROJECT.md`](PROJECT.md) (in Russian).
 
-## Известные ограничения
+## Known limitations
 
-- Сторы `students` и `lessons` — целые документы-массивы, поэтому родитель, подписанный на них, получает данные всех учеников своего преподавателя, а фильтрация идёт на клиенте. Полностью закрыть это можно переносом этих сторов в подколлекции, как это уже сделано для отчётов.
-- Часть экранов ещё не переведена на новый дизайн — варианты экранов лежат рядом и скрыты из таб-бара.
+- The `students` and `lessons` stores are whole-array documents, so a parent subscribed to them receives data for all of their teacher's students, with filtering done on the client. Fully closing this requires moving those stores into subcollections, the way reports already were.
+- Some screens haven't been moved to the new design yet — alternative versions of screens sit side by side and are hidden from the tab bar.
